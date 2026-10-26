@@ -59,6 +59,12 @@
     ]
   },
   {
+    "property": "mod.nestedtabs.interactive_lines",
+    "label": "Click tree connectors to collapse or expand",
+    "type": "checkbox",
+    "defaultValue": true
+  },
+  {
     "property": "mod.nestedtabs.show_count",
     "label": "Show the number of hidden tabs on collapsed parents",
     "type": "checkbox",

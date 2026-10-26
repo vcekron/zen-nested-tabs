@@ -20,6 +20,8 @@
 
   /* Tree connectors (--nt-rails layers): currentColor lines, made translucent as one. */
   --nt-connector-opacity: 0.25;
+  --nt-connector-hover-opacity: 0.5;
+  --nt-hit-width: 12px; /* clickable width around a line */
   --nt-connector-width: 2px;
   --nt-connector-radius: 7px; /* of the line's center, like an SVG arc */
   --nt-branch-overlap: 2px; /* how far a branch reaches into the child's row */
@@ -182,7 +184,7 @@
     }
   }
 
-  &:is(:hover, [nt-collapsed]) {
+  &:is(:hover:not(:has(.nt-hit:hover)), [nt-collapsed]) {
     & .nt-twisty {
       display: flex;
     }
@@ -241,7 +243,8 @@
   :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack {
     position: relative;
 
-    &::before {
+    &::before,
+    &::after {
       content: "";
       position: absolute;
       pointer-events: none;
@@ -263,10 +266,18 @@
 
   :root:not([zen-renaming-tab="true"])
     #tabbrowser-tabs:not([movingtab])
-    .tabbrowser-tab:active:not(:has(.tab-content > image:active))
-    > .tab-stack::before {
-    scale: calc(1 / var(--zen-active-tab-scale, 1));
+    .tabbrowser-tab:active:not(:has(.tab-content > image:active, .nt-hit:active))
+    > .tab-stack {
+    &::before,
+    &::after {
+      scale: calc(1 / var(--zen-active-tab-scale, 1));
+    }
   }
+}
+
+/* Pressing a tree line does not press its tab. */
+#tabbrowser-tabs .tabbrowser-tab:has(.nt-hit:active) {
+  scale: none !important;
 }
 
 /* ---------------------------------------------------------------------------
@@ -297,12 +308,79 @@
 /* ---------------------------------------------------------------------------
    Tree connectors: ├ and ╰ branches from under the parent's icon to the
    row's vertical center, with │ only where a tree continues. All of a row's
-   lines are background layers of one element (--nt-rails, set by the script).
+   lines are background layers of one element (--nt-rails, set by the script);
+   the lines of a hovered parent's connector are on ::after (--nt-rails-hover).
    --------------------------------------------------------------------------- */
 @media (-moz-pref("mod.nestedtabs.tree_lines", "connectors")) {
-  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack::before {
-    background: var(--nt-rails, none);
-    opacity: var(--nt-connector-opacity);
+  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack {
+    &::before {
+      background: var(--nt-rails, none);
+      opacity: var(--nt-connector-opacity);
+    }
+
+    &::after {
+      background: var(--nt-rails-hover, none);
+      opacity: var(--nt-connector-hover-opacity);
+    }
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Interactive connectors: click targets over the lines (.nt-hit, placed by
+   the script) collapse or expand the parent the line belongs to.
+   --------------------------------------------------------------------------- */
+.nt-hits {
+  display: none;
+}
+
+@media (-moz-pref("mod.nestedtabs.interactive_lines")) and (-moz-pref("mod.nestedtabs.tree_lines", "connectors")) {
+  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack > .nt-hits {
+    display: block;
+    position: absolute;
+    pointer-events: none;
+    inset-block: calc(-1 * var(--nt-guide-overhang, 0px));
+    inset-inline-start: calc(var(--nt-depth) * var(--nt-indent) * -1);
+    width: calc(var(--nt-depth) * var(--nt-indent) + var(--nt-branch-overlap));
+  }
+
+  .nt-hit {
+    position: absolute;
+    pointer-events: auto;
+    cursor: pointer;
+    -moz-window-dragging: no-drag;
+
+    .tabbrowser-tab:is([nt-hidden], [nt-folding]) & {
+      pointer-events: none;
+    }
+
+    &:is([nt-part="rail"], [nt-part="top"]) {
+      inset-inline-start: calc(var(--nt-col) * var(--nt-indent) + var(--nt-trunk-x) - var(--nt-hit-width) / 2);
+      inset-block-start: 0;
+      width: var(--nt-hit-width);
+      height: 100%;
+    }
+
+    &[nt-part="top"] {
+      height: 50%;
+    }
+
+    &[nt-part="arm"] {
+      inset-inline-start: calc(var(--nt-col) * var(--nt-indent) + var(--nt-trunk-x));
+      inset-block-start: calc(50% - var(--nt-hit-width) / 2);
+      width: calc(var(--nt-connector-radius) + var(--nt-branch-length));
+      height: var(--nt-hit-width);
+    }
+  }
+
+  /* Hovering a line does not show its tab as hovered. */
+  .tabbrowser-tab:has(.nt-hit:hover) {
+    &:not([selected]) > .tab-stack > .tab-background {
+      background-color: transparent !important;
+    }
+
+    & .tab-close-button {
+      visibility: collapse !important;
+    }
   }
 }
 

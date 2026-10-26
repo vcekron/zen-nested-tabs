@@ -44,6 +44,7 @@
   const PREF_INDENT = "mod.nestedtabs.indent";
   const PREF_CARET_POSITION = "mod.nestedtabs.caret_position";
   const PREF_TREE_LINES = "mod.nestedtabs.tree_lines";
+  const PREF_INTERACTIVE_LINES = "mod.nestedtabs.interactive_lines";
   const PREF_SHOW_GUIDES_OLD = "mod.nestedtabs.show_guides";
 
   /** Start edge of a line under the icon of the depth-`column` ancestor, from the row's start. */
@@ -163,6 +164,11 @@
     #dropOverlay = null;
     /** Running collapse/expand animations, see #animateFold. */
     #foldAnimations = new WeakMap();
+    /** Parent whose connector is under the pointer, see #onLineHover. */
+    #hoverLine = null;
+    /** The last normalize() pass's per-tab tree info, for redrawing lines alone. */
+    #lastInfo = null;
+    #linesQueued = false;
 
     async init() {
       // Mod managers don't reliably apply preferences.json defaults, and the
@@ -173,6 +179,7 @@
       defaults.setBoolPref("mod.nestedtabs.show_count", false);
       defaults.setStringPref(PREF_CLOSE_BEHAVIOR, "close_collapsed");
       defaults.setStringPref(PREF_CARET_POSITION, "icon");
+      defaults.setBoolPref(PREF_INTERACTIVE_LINES, true);
       this.#migrateShowGuides();
 
       await this.#whenDelayedStartupFinished();
@@ -576,6 +583,7 @@
         this.#renderTab(tab, depth, hidden, descendants);
       }
 
+      this.#lastInfo = info;
       this.#renderTreeLines(info);
       this.#updateSidebarWidth(maxVisibleDepth);
       this.#updateGuideGap();
@@ -597,8 +605,9 @@
     /**
      * Sets --nt-rails on every visible tree tab: the tab's own branch in its
      * last indent column, plus a vertical line in each earlier column whose
-     * tab on this tab's ancestor chain has a later visible sibling. Hidden
-     * tabs keep the lines they had while folding away.
+     * tab on this tab's ancestor chain has a later visible sibling. Lines of
+     * the parent whose connector is hovered go to --nt-rails-hover instead.
+     * Hidden tabs keep the lines they had while folding away.
      */
     #renderTreeLines(info) {
       const lastChild = new Map(); // shown parent -> its last visible child
@@ -614,19 +623,73 @@
         }
         const chain = [tab, ...shown]; // chain[k] is at depth (depth - k)
         const rails = [];
+        const hoverRails = [];
+        const hits = [];
         for (let column = 0; column < depth; column++) {
-          const continues = lastChild.get(chain[depth - column]) !== chain[depth - 1 - column];
-          if (column === depth - 1) {
-            rails.push(...branchLayers(column, continues, rtl));
-          } else if (continues) {
-            rails.push(railLayer(column, rtl));
+          const parent = chain[depth - column];
+          const own = column === depth - 1;
+          const continues = lastChild.get(parent) !== chain[depth - 1 - column];
+          if (!own && !continues) {
+            continue;
+          }
+          const layers = own ? branchLayers(column, continues, rtl) : [railLayer(column, rtl)];
+          (parent === this.#hoverLine ? hoverRails : rails).push(...layers);
+          hits.push({ column, parent, parts: own ? [continues ? "rail" : "top", "arm"] : ["rail"] });
+        }
+        for (const [property, layers] of [["--nt-rails", rails], ["--nt-rails-hover", hoverRails]]) {
+          const value = layers.join(", ") || "none";
+          if (tab.style.getPropertyValue(property) !== value) {
+            tab.style.setProperty(property, value);
           }
         }
-        const value = rails.join(", ") || "none";
-        if (tab.style.getPropertyValue("--nt-rails") !== value) {
-          tab.style.setProperty("--nt-rails", value);
-        }
+        this.#renderHits(tab, hits);
       }
+    }
+
+    /**
+     * Click targets over the row's connector lines ([nt-part] rail, top or
+     * arm in indent column --nt-col), each knowing the parent its line
+     * belongs to.
+     */
+    #renderHits(tab, hits) {
+      const stack = tab.querySelector(":scope > .tab-stack");
+      if (!stack) {
+        return;
+      }
+      let box = stack.querySelector(":scope > .nt-hits");
+      const key = hits.map(({ column, parent, parts }) => `${column}:${parts}:${parent._ntId}`).join(" ");
+      if (!box || box._ntKey !== key) {
+        box ??= stack.appendChild(Object.assign(document.createXULElement("hbox"), { className: "nt-hits" }));
+        box._ntKey = key;
+        box.replaceChildren(
+          ...hits.flatMap(({ column, parts }) =>
+            parts.map(part => {
+              const hit = document.createXULElement("hbox");
+              hit.className = "nt-hit";
+              hit.setAttribute("nt-part", part);
+              hit.style.setProperty("--nt-col", column);
+              return hit;
+            })
+          )
+        );
+      }
+      const parents = hits.flatMap(({ parent, parts }) => parts.map(() => parent));
+      [...box.children].forEach((hit, i) => (hit._ntParent = parents[i]));
+    }
+
+    #setHoverLine(parent) {
+      if (parent === this.#hoverLine) {
+        return;
+      }
+      this.#hoverLine = parent;
+      if (this.#linesQueued || !this.#lastInfo) {
+        return;
+      }
+      this.#linesQueued = true;
+      requestAnimationFrame(() => {
+        this.#linesQueued = false;
+        this.#renderTreeLines(this.#lastInfo);
+      });
     }
 
     /** Sets --nt-icon-x: the center of a parent tab's icon, from the start of its row. */
@@ -890,11 +953,15 @@
       }
       tab._ntDepth = 0;
       tab._ntRevealed = false;
+      if (this.#hoverLine === tab) {
+        this.#hoverLine = null;
+      }
       for (const attr of ["nt-depth", "nt-hidden", "nt-has-children", "nt-collapsed"]) {
         tab.removeAttribute(attr);
       }
       tab.style.removeProperty("--nt-depth");
       tab.style.removeProperty("--nt-rails");
+      tab.style.removeProperty("--nt-rails-hover");
     }
 
     #ensureDecorations(tab) {
@@ -1071,6 +1138,8 @@
       for (const type of ["mousedown", "mouseup", "click", "auxclick", "dblclick", "dragstart"]) {
         container.addEventListener(type, this, true);
       }
+      container.addEventListener("mouseover", this);
+      container.addEventListener("mouseleave", this);
 
       // Drag and drop within a list (see "Drag and drop" below). Capture on the
       // window so we see the events before Zen/Firefox's tab strip does.
@@ -1095,10 +1164,14 @@
         case "click":
         case "auxclick":
         case "dblclick":
-          this.#onTwistyEvent(event);
+          this.#onTreeControlEvent(event);
+          break;
+        case "mouseover":
+        case "mouseleave":
+          this.#onLineHover(event);
           break;
         case "dragstart":
-          this.#onTwistyEvent(event);
+          this.#onTreeControlEvent(event);
           if (!event.defaultPrevented) {
             this.#onDragStart(event);
           }
@@ -1132,17 +1205,29 @@
       }
     }
 
-    #onTwistyEvent(event) {
-      const twisty = targetElement(event)?.closest?.(".nt-twisty");
-      if (!twisty) {
+    #onTreeControlEvent(event) {
+      const target = targetElement(event);
+      const hit = target?.closest?.(".nt-hit");
+      const twisty = hit ? null : target?.closest?.(".nt-twisty");
+      if (!hit && !twisty) {
         return;
       }
       event.stopPropagation();
       event.preventDefault();
       if (event.type === "click" && event.button === 0) {
-        const tab = twisty.closest(".tabbrowser-tab");
-        this.toggleCollapsed(tab, { recursive: event.ctrlKey || event.metaKey });
+        const tab = hit ? hit._ntParent : twisty.closest(".tabbrowser-tab");
+        if (hit) {
+          this.#setHoverLine(null);
+        }
+        if (tab?.isConnected) {
+          this.toggleCollapsed(tab, { recursive: event.ctrlKey || event.metaKey });
+        }
       }
+    }
+
+    #onLineHover(event) {
+      const hit = event.type === "mouseover" ? targetElement(event)?.closest?.(".nt-hit") : null;
+      this.#setHoverLine(hit?._ntParent ?? null);
     }
 
     #onTabOpen(tab) {
