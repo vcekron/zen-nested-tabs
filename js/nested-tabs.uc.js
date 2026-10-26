@@ -335,12 +335,6 @@
       }
       tab._ntCollapsed = !!collapsed;
       this.#save(tab);
-
-      // Folding a tree that contains the selected tab: select the parent so the
-      // active tab never disappears from the sidebar.
-      if (collapsed && this.descendantsOf(tab).includes(gBrowser.selectedTab)) {
-        gBrowser.selectedTab = tab;
-      }
     }
 
     toggleCollapsed(tab, { recursive = false } = {}) {
@@ -532,7 +526,7 @@
 
       const map = this.#idMap();
       const activeSpace = window.gZenWorkspaces?.activeWorkspace;
-      const info = new Map(); // tab -> { depth, hidden, descendants }
+      const info = new Map(); // tab -> { depth, hidden, ancestors, shown, descendants }
       let maxVisibleDepth = 0;
 
       for (const tab of gBrowser.tabs) {
@@ -547,7 +541,17 @@
           this.#save(tab);
         }
         const ancestors = this.#ancestors(tab, map);
-        info.set(tab, { depth: ancestors.length, hidden: ancestors.some(a => a._ntCollapsed), ancestors, descendants: 0 });
+        const outermostCollapsed = ancestors.findLastIndex(a => a._ntCollapsed);
+        tab._ntRevealed = outermostCollapsed >= 0 && (tab._ntRevealed || tab.selected);
+        // Revealed tabs show directly under their outermost collapsed ancestor.
+        const shown = tab._ntRevealed ? ancestors.slice(outermostCollapsed) : ancestors;
+        info.set(tab, {
+          depth: shown.length,
+          hidden: outermostCollapsed >= 0 && !tab._ntRevealed,
+          ancestors,
+          shown,
+          descendants: 0,
+        });
       }
 
       for (const [tab, { depth, hidden, ancestors }] of info) {
@@ -595,18 +599,18 @@
      * tabs keep the lines they had while folding away.
      */
     #renderTreeLines(info) {
-      const lastChild = new Map(); // parent -> its last visible child
-      for (const [tab, { hidden, ancestors }] of info) {
-        if (!hidden && ancestors.length) {
-          lastChild.set(ancestors[0], tab);
+      const lastChild = new Map(); // shown parent -> its last visible child
+      for (const [tab, { hidden, shown }] of info) {
+        if (!hidden && shown.length) {
+          lastChild.set(shown[0], tab);
         }
       }
       const rtl = document.documentElement.matches(":-moz-locale-dir(rtl)");
-      for (const [tab, { depth, hidden, ancestors }] of info) {
+      for (const [tab, { depth, hidden, shown }] of info) {
         if (hidden) {
           continue;
         }
-        const chain = [tab, ...ancestors]; // chain[k] is at depth (depth - k)
+        const chain = [tab, ...shown]; // chain[k] is at depth (depth - k)
         const rails = [];
         for (let column = 0; column < depth; column++) {
           const continues = lastChild.get(chain[depth - column]) !== chain[depth - 1 - column];
@@ -883,6 +887,7 @@
         this.#endFold(tab);
       }
       tab._ntDepth = 0;
+      tab._ntRevealed = false;
       for (const attr of ["nt-depth", "nt-hidden", "nt-has-children", "nt-collapsed"]) {
         tab.removeAttribute(attr);
       }
@@ -1110,16 +1115,6 @@
           this.#onTabMove(event.target);
           break;
         case "TabSelect":
-          if (event.target.hasAttribute("nt-hidden")) {
-            // Closing the selected tab selects its successor before TabClose fires.
-            const tab = event.target;
-            setTimeout(() => {
-              if (tab.selected && !tab.closing) {
-                this.#expandAncestors(tab);
-                this.normalize();
-              }
-            }, 0);
-          }
           this.scheduleNormalize();
           break;
         case "SSTabRestoring":
