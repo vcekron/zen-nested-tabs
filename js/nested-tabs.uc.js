@@ -934,7 +934,14 @@
           break;
         case "TabSelect":
           if (event.target.hasAttribute("nt-hidden")) {
-            this.#expandAncestors(event.target);
+            // Closing the selected tab selects its successor before TabClose fires.
+            const tab = event.target;
+            setTimeout(() => {
+              if (tab.selected && !tab.closing) {
+                this.#expandAncestors(tab);
+                this.normalize();
+              }
+            }, 0);
           }
           this.scheduleNormalize();
           break;
