@@ -9,8 +9,8 @@
     "property": "mod.nestedtabs.indent",
     "label": "Indent per nesting level, in px (4–64)",
     "type": "string",
-    "placeholder": "16",
-    "defaultValue": "16"
+    "placeholder": "26",
+    "defaultValue": "26"
   },
   {
     "property": "mod.nestedtabs.caret_position",

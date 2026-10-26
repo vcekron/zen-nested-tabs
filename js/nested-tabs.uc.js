@@ -35,7 +35,7 @@
     return;
   }
 
-  const DEFAULT_INDENT_PX = 16;
+  const DEFAULT_INDENT_PX = 26;
   const MIN_INDENT_PX = 4;
   const MAX_INDENT_PX = 64;
 
@@ -871,7 +871,7 @@
     /**
      * Zen's own resizer and _updateMaxWidth() both ask
      * gZenVerticalTabsManager.getSidebarMinWidth() for the minimum width, so we
-     * wrap it and add 16px per visible nesting level.
+     * wrap it and add one indent per visible nesting level.
      */
     #patchSidebarMinWidth() {
       const manager = window.gZenVerticalTabsManager;
