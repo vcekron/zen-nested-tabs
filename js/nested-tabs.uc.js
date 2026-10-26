@@ -868,6 +868,12 @@
           this.scheduleNormalize();
           return;
         }
+        // SSTabRestoring only fires once history is restored, after this timeout.
+        const restoredId = lazy.SessionStore.getCustomTabValue(tab, KEY_ID);
+        if (restoredId && restoredId !== tab._ntId) {
+          this.#onTabRestoring(tab);
+          return;
+        }
         if (tab._ntParentId) {
           // Restored or duplicated tab: SessionStore already gave it a parent.
           this.normalize();
