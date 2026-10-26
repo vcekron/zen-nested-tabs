@@ -84,6 +84,7 @@
   const KEY_PARENT = "zenNestedTabsParent";
   const KEY_COLLAPSED = "zenNestedTabsCollapsed";
   const KEY_PROMOTIONS = "zenNestedTabsPromotions";
+  const KEY_CLOSED_WITH = "zenNestedTabsClosedWith";
 
   // browser.xhtml already exposes SessionStore as a window global. The module
   // moved from resource:///modules/ to moz-src:/// in newer Firefox, so only
@@ -105,6 +106,15 @@
   });
 
   const newId = () => Services.uuid.generateUUID().toString().slice(1, -1);
+
+  /** Parse a KEY_CLOSED_WITH value: { root, order } or null. */
+  const parseClosedWith = value => {
+    try {
+      return value ? JSON.parse(value) : null;
+    } catch (e) {
+      return null;
+    }
+  };
 
   class ZenNestedTabs {
     /** Extra px Zen's getSidebarMinWidth() should add for the current nesting. */
@@ -1005,7 +1015,13 @@
 
       if (closeTree) {
         const descendants = this.descendantsOf(tab);
-        setTimeout(() => gBrowser.removeTabs(descendants.filter(t => t.isConnected && !t.closing)), 0);
+        setTimeout(() => {
+          const closing = descendants.filter(t => t.isConnected && !t.closing);
+          closing.forEach((t, order) =>
+            lazy.SessionStore.setCustomTabValue(t, KEY_CLOSED_WITH, JSON.stringify({ root: tab._ntId, order }))
+          );
+          gBrowser.removeTabs(closing);
+        }, 0);
       } else {
         const grandparent = this.parentOf(tab);
         const promotion = { from: tab._ntId, to: grandparent?._ntId ?? null };
@@ -1035,6 +1051,7 @@
         }
       } else {
         this.#reclaimPromotedChildren(tab);
+        this.#restoreClosedTree(tab);
       }
       this.scheduleNormalize();
     }
@@ -1061,6 +1078,47 @@
         this.setParent(child, tab, child._ntPromotions.slice(0, -1));
       }
       this.#bringDescendants(tab, this.descendantsOf(tab));
+    }
+
+    /**
+     * Undo a "close the whole tree" in one step: when `tab` is the root or a
+     * member of a tree closed by #onTabClose, reopen the rest of that tree and
+     * put the members back under the root in their original order.
+     */
+    #restoreClosedTree(tab) {
+      const ss = lazy.SessionStore;
+      const rootId = parseClosedWith(ss.getCustomTabValue(tab, KEY_CLOSED_WITH))?.root ?? tab._ntId;
+      if (!rootId) {
+        return;
+      }
+      const inTree = extData => extData[KEY_ID] === rootId || parseClosedWith(extData[KEY_CLOSED_WITH])?.root === rootId;
+
+      const closed = ss.getClosedTabDataForWindow(window).filter(c => inTree(c.state?.extData || {}));
+      for (const c of closed) {
+        ss.undoCloseById(c.closedId, true, window);
+      }
+
+      const root = gBrowser.tabs.find(t => ss.getCustomTabValue(t, KEY_ID) === rootId);
+      const members = gBrowser.tabs
+        .map(t => ({ t, tag: parseClosedWith(ss.getCustomTabValue(t, KEY_CLOSED_WITH)) }))
+        .filter(({ tag }) => tag?.root === rootId)
+        .sort((a, b) => a.tag.order - b.tag.order)
+        .map(({ t }) => t);
+      if (!root || !members.length) {
+        return;
+      }
+      let anchor = root;
+      for (const member of members) {
+        ss.deleteCustomTabValue(member, KEY_CLOSED_WITH);
+        if (member.parentNode === root.parentNode) {
+          this.#moveAfter(member, anchor);
+          anchor = member;
+        }
+      }
+      if (closed.length) {
+        gBrowser.selectedTab = root;
+      }
+      this.scheduleNormalize();
     }
 
     /**
