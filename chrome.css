@@ -69,8 +69,15 @@
 /* ---------------------------------------------------------------------------
    Collapsed subtrees
    --------------------------------------------------------------------------- */
-.tabbrowser-tab[nt-hidden]:not([zen-essential]) {
+.tabbrowser-tab[nt-hidden]:not([zen-essential], [nt-folding]) {
   display: none !important;
+}
+
+/* Collapsing or expanding (the script animates height and opacity). */
+.tabbrowser-tab[nt-folding] {
+  overflow-x: visible;
+  overflow-y: clip;
+  transition: none !important;
 }
 
 @media (prefers-reduced-motion: no-preference) {

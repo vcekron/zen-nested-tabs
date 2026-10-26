@@ -159,6 +159,8 @@
     /** Active tab drag, see #onDragStart. */
     #drag = null;
     #dropOverlay = null;
+    /** Running collapse/expand animations, see #animateFold. */
+    #foldAnimations = new WeakMap();
 
     async init() {
       // Mod managers don't reliably apply preferences.json defaults, and the
@@ -587,9 +589,10 @@
     }
 
     /**
-     * Sets --nt-rails on every tree tab: the tab's own branch in its last
-     * indent column, plus a vertical line in each earlier column whose tab on
-     * this tab's ancestor chain has a later visible sibling.
+     * Sets --nt-rails on every visible tree tab: the tab's own branch in its
+     * last indent column, plus a vertical line in each earlier column whose
+     * tab on this tab's ancestor chain has a later visible sibling. Hidden
+     * tabs keep the lines they had while folding away.
      */
     #renderTreeLines(info) {
       const lastChild = new Map(); // parent -> its last visible child
@@ -599,7 +602,10 @@
         }
       }
       const rtl = document.documentElement.matches(":-moz-locale-dir(rtl)");
-      for (const [tab, { depth, ancestors }] of info) {
+      for (const [tab, { depth, hidden, ancestors }] of info) {
+        if (hidden) {
+          continue;
+        }
         const chain = [tab, ...ancestors]; // chain[k] is at depth (depth - k)
         const rails = [];
         for (let column = 0; column < depth; column++) {
@@ -784,6 +790,8 @@
     }
 
     #renderTab(tab, depth, hidden, descendants) {
+      const fold =
+        tab.hasAttribute("nt-depth") && tab.hasAttribute("nt-hidden") !== hidden && this.#canAnimateFold(tab);
       tab._ntDepth = depth;
       if (tab.getAttribute("nt-depth") !== String(depth)) {
         tab.setAttribute("nt-depth", depth);
@@ -791,6 +799,9 @@
       // Compare the style too: a drag preview may have changed it.
       if (tab.style.getPropertyValue("--nt-depth") !== String(depth)) {
         tab.style.setProperty("--nt-depth", depth);
+      }
+      if (fold) {
+        this.#animateFold(tab, hidden);
       }
       tab.toggleAttribute("nt-hidden", hidden);
       tab.toggleAttribute("nt-has-children", descendants > 0);
@@ -804,7 +815,73 @@
       }
     }
 
+    #canAnimateFold(tab) {
+      return (
+        this.#initialized &&
+        !tab.hidden &&
+        window.gNavToolbox.getAttribute("zen-sidebar-expanded") === "true" &&
+        !window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      );
+    }
+
+    /**
+     * Folds `tab` out of view (`hide`) or back in, like Zen's folders: height,
+     * block margins/padding and opacity over 0.18s, ease-in-out. The row stays
+     * displayed ([nt-folding]) until the animation ends. A running fold is
+     * reversed from its current values.
+     */
+    #animateFold(tab, hide) {
+      const running = this.#foldAnimations.get(tab);
+      const current = running ? this.#foldFrame(tab) : null;
+      running?.cancel();
+      tab.setAttribute("nt-folding", "");
+
+      const shown = this.#foldFrame(tab);
+      const folded = { ...shown, height: "0px", opacity: "0" };
+      for (const side of ["marginTop", "marginBottom", "paddingTop", "paddingBottom"]) {
+        folded[side] = "0px";
+      }
+      const animation = tab.animate([current ?? (hide ? shown : folded), hide ? folded : shown], {
+        duration: 180,
+        easing: "ease-in-out",
+        fill: "forwards",
+      });
+      this.#foldAnimations.set(tab, animation);
+      animation.finished.then(
+        () => {
+          if (this.#foldAnimations.get(tab) === animation) {
+            this.#endFold(tab);
+          }
+        },
+        () => {}
+      );
+    }
+
+    /** The values #animateFold animates, as `tab` currently renders them. */
+    #foldFrame(tab) {
+      const style = getComputedStyle(tab);
+      return {
+        height: style.height,
+        minHeight: "0px",
+        opacity: style.opacity,
+        marginTop: style.marginTop,
+        marginBottom: style.marginBottom,
+        paddingTop: style.paddingTop,
+        paddingBottom: style.paddingBottom,
+      };
+    }
+
+    #endFold(tab) {
+      const animation = this.#foldAnimations.get(tab);
+      this.#foldAnimations.delete(tab);
+      tab.removeAttribute("nt-folding");
+      animation?.cancel();
+    }
+
     #clearTab(tab) {
+      if (this.#foldAnimations.has(tab)) {
+        this.#endFold(tab);
+      }
       tab._ntDepth = 0;
       for (const attr of ["nt-depth", "nt-hidden", "nt-has-children", "nt-collapsed"]) {
         tab.removeAttribute(attr);
