@@ -73,15 +73,17 @@
 
   /**
    * Where the caret sits:
-   *   "edge"  (default) far right, after the close button, so the close button
+   *   "icon"  (default) in place of the favicon, on hover and while
+   *           collapsed, like the chevron of a space's pinned tabs
+   *   "edge"  far right, after the close button, so the close button
    *           appearing on hover never slides into the caret's spot
    *   "right" after the title, before the close button
    *   "left"  before the favicon
    */
-  const CARET_POSITIONS = ["edge", "right", "left"];
+  const CARET_POSITIONS = ["icon", "edge", "right", "left"];
   const readCaretPosition = () => {
-    const value = Services.prefs.getStringPref(PREF_CARET_POSITION, "edge");
-    return CARET_POSITIONS.includes(value) ? value : "edge";
+    const value = Services.prefs.getStringPref(PREF_CARET_POSITION, "icon");
+    return CARET_POSITIONS.includes(value) ? value : "icon";
   };
 
   /**
@@ -155,7 +157,7 @@
     #initialized = false;
     #normalizeQueued = false;
     #indentPx = DEFAULT_INDENT_PX;
-    #caretPosition = "edge";
+    #caretPosition = "icon";
     /** Active tab drag, see #onDragStart. */
     #drag = null;
     #dropOverlay = null;
@@ -168,9 +170,9 @@
       const defaults = Services.prefs.getDefaultBranch("");
       defaults.setBoolPref(PREF_AUTO_NEST, true);
       defaults.setStringPref(PREF_TREE_LINES, "connectors");
-      defaults.setBoolPref("mod.nestedtabs.show_count", true);
-      defaults.setStringPref(PREF_CLOSE_BEHAVIOR, "promote");
-      defaults.setStringPref(PREF_CARET_POSITION, "edge");
+      defaults.setBoolPref("mod.nestedtabs.show_count", false);
+      defaults.setStringPref(PREF_CLOSE_BEHAVIOR, "close_collapsed");
+      defaults.setStringPref(PREF_CARET_POSITION, "icon");
       this.#migrateShowGuides();
 
       await this.#whenDelayedStartupFinished();
@@ -897,7 +899,7 @@
 
     #ensureDecorations(tab) {
       const content = tab.querySelector(".tab-content");
-      let twisty = content.querySelector(":scope > .nt-twisty");
+      let twisty = content.querySelector(":scope > .nt-twisty, :scope > .tab-icon-stack > .nt-twisty");
       let count = content.querySelector(":scope > .nt-count");
       if (!count) {
         count = document.createXULElement("hbox");
@@ -915,7 +917,12 @@
         twisty.setAttribute("role", "button");
       }
       // See readCaretPosition(). Only touch the DOM when it is out of place.
-      if (this.#caretPosition === "left") {
+      const iconStack = content.querySelector(".tab-icon-stack");
+      if (this.#caretPosition === "icon" && iconStack) {
+        if (twisty.parentNode !== iconStack) {
+          iconStack.append(twisty);
+        }
+      } else if (this.#caretPosition === "left") {
         if (content.firstElementChild !== twisty) {
           content.prepend(twisty);
         }
@@ -1189,7 +1196,7 @@
         return;
       }
 
-      const behavior = Services.prefs.getStringPref(PREF_CLOSE_BEHAVIOR, "promote");
+      const behavior = Services.prefs.getStringPref(PREF_CLOSE_BEHAVIOR, "close_collapsed");
       const closeTree = behavior === "close_all" || (behavior === "close_collapsed" && tab._ntCollapsed);
 
       if (closeTree) {

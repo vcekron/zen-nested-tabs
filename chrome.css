@@ -152,6 +152,55 @@
   rotate: 90deg;
 }
 
+/* In place of the favicon: the chevron of a space's pinned tabs
+   (zen-workspaces.css), shown on hover and while collapsed. */
+:root[nt-caret="icon"][zen-sidebar-expanded="true"] .tabbrowser-tab[nt-has-children]:not([zen-essential]) {
+  & .nt-twisty {
+    display: none;
+    box-sizing: border-box;
+    width: 16px;
+    height: 16px;
+    padding: 1px;
+    /* The favicon's own margins in the icon stack (vertical-tabs.css). */
+    margin-block: 0;
+    margin-inline: calc(var(--toolbarbutton-padding-inner, 0px) / 3) var(--toolbarbutton-padding-inner, 0px);
+    border-radius: 0;
+    transition: none;
+
+    &,
+    &:hover {
+      opacity: 1;
+      background-color: transparent;
+    }
+
+    &::before {
+      width: 100%;
+      height: 100%;
+      mask: url("chrome://browser/skin/zen-icons/arrow-right.svg") center / contain no-repeat;
+      rotate: 90deg;
+      transition: rotate 0.1s;
+    }
+  }
+
+  &:is(:hover, [nt-collapsed]) {
+    & .nt-twisty {
+      display: flex;
+    }
+
+    & .tab-icon-stack > :not(.nt-twisty) {
+      visibility: hidden;
+    }
+  }
+
+  &[nt-collapsed] .nt-twisty::before {
+    rotate: 0deg;
+  }
+
+  :root:-moz-locale-dir(rtl) &[nt-collapsed] .nt-twisty::before {
+    rotate: 180deg;
+  }
+}
+
 /* ---------------------------------------------------------------------------
    Hidden-descendant counter on collapsed parents
    --------------------------------------------------------------------------- */

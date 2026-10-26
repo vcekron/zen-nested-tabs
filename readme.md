@@ -9,7 +9,7 @@ This is a fork of [nigeltroy-gpt0/zen-nested-tabs](https://github.com/nigeltroy-
 - **Automatic nesting.** A tab opened from a link (middle-click, `target=_blank`, `window.open`) becomes a child of the tab that opened it and goes to the end of that tab's children. New tabs from Ctrl/Cmd+T, bookmarks and the URL bar stay at the top level. You can turn this off in the mod's preferences.
 - **26px per level by default.** Each level is indented 26px, the same step as folder contents with Zen Folder Tree Connectors installed; change it with the *Indent per nesting level* setting (4–64px). Changes apply immediately. Inside a Zen folder, the indent is added on top of the folder's own indent.
 - **Tree lines.** By default, rounded connectors (├, ╰) run from under the parent's icon to each child's vertical center, with a vertical line only where a tree continues below. With an indent below about 25px, the line moves left of the icon to leave room for the branch. The *Tree lines* setting can switch to faint indent guides or turn the lines off. The connector look is inspired by [Zen Folder Tree Connectors](https://github.com/JustAdumbPrsn/ZenFolderTreeConnectors).
-- **Carets.** Every tab that has children shows a caret at the far right edge of the tab. The close button appears to its left on hover, so it never slides into the caret's spot. The *Expand/collapse caret position* setting can instead put the caret just before the close button, or on the left before the favicon. Click it to collapse or expand that tree. Ctrl/Cmd-click collapses or expands every level below it. A collapsed parent shows how many tabs it is hiding (you can turn this off). Collapsing and expanding fold the rows in and out like Zen's folders.
+- **Carets.** When you hover a tab that has children, Zen's chevron replaces its favicon, like the pinned tabs of a space; a collapsed parent keeps showing it. The *Expand/collapse caret position* setting can instead put a caret at the far right edge of the tab (after the close button), just before the close button, or on the left before the favicon. Click it to collapse or expand that tree. Ctrl/Cmd-click collapses or expands every level below it. A collapsed parent can also show how many tabs it is hiding (off by default). Collapsing and expanding fold the rows in and out like Zen's folders.
 - **The selected tab stays visible.** Like in Zen's folders, collapsing a tree that holds the selected tab, or switching to a tab inside a collapsed tree, keeps that tab shown directly under the collapsed parent. It stays there when you switch to other tabs, until you close it or expand the tree.
 - **The sidebar grows with nesting.** The minimum sidebar width is Zen's own minimum plus one indent (26px by default) for each visible level. If a new level doesn't fit, the sidebar widens to the new minimum. When nesting gets shallower, the minimum drops, so you can drag the sidebar narrower again, but the mod never shrinks it for you. Zen's drag-to-resize respects the same minimum.
 - **Essentials are never nested.** Essentials, Glance previews and Zen's empty placeholder tab are left out completely.
@@ -20,7 +20,7 @@ This is a fork of [nigeltroy-gpt0/zen-nested-tabs](https://github.com/nigeltroy-
   - **Hovering as a child of a collapsed tab** for a moment expands it. Dragging near the top or bottom edge of the list scrolls it.
   - **Drags elsewhere are Zen's:** into Essentials, the pinned tabs, a folder, another space or another window. Zen handles those, and the tab leaves its tree while its children move up to its parent. Dragging several selected tabs at once also uses Zen's normal reordering.
 - **Other moves.** Keyboard shortcuts and extensions that move a tab follow Tree Style Tab's rule: the tab joins the level of the tab below it, and its children move with it.
-- **Closing a parent.** Choose one of: *Close the whole tree*, *Close the whole tree, only if collapsed*, or *Move children up one level* (the default).
+- **Closing a parent.** Choose one of: *Close the whole tree*, *Close the whole tree, only if collapsed* (the default), or *Move children up one level*.
 - **Undo restores the tree.** Reopening a closed parent with Ctrl/Cmd+Shift+T puts back the children that were moved up a level when it closed, unless you have moved them since. A tree that was closed as a whole comes back with one Ctrl/Cmd+Shift+T, collapsed state included. Both also work after a restart.
 - **Tab context menu.** *Nest Under Tab Above*, *Move Out One Level*, *Collapse/Expand Tree*, *Collapse All Trees*, *Expand All Trees*.
 - **The tree is saved with your session**, using SessionStore's custom tab values, so it survives restarts.
@@ -69,9 +69,9 @@ Zen Mods from the official store are CSS only. CSS can indent and hide tabs, but
 | `mod.nestedtabs.auto_nest` | `true` | Nest tabs opened from links |
 | `mod.nestedtabs.indent` | `26` | Indent per nesting level in px (4–64); also sets how much the sidebar's minimum width grows per level |
 | `mod.nestedtabs.tree_lines` | `connectors` | `connectors` (rounded tree connectors), `guides` (faint vertical guide lines for each level) or `off` |
-| `mod.nestedtabs.show_count` | `true` | Hidden-tab count on collapsed parents |
-| `mod.nestedtabs.close_behavior` | `promote` | `close_all`, `close_collapsed` or `promote` |
-| `mod.nestedtabs.caret_position` | `edge` | `edge` (far right, after the close button), `right` (before the close button) or `left` (before the favicon) |
+| `mod.nestedtabs.show_count` | `false` | Hidden-tab count on collapsed parents |
+| `mod.nestedtabs.close_behavior` | `close_collapsed` | `close_all`, `close_collapsed` or `promote` |
+| `mod.nestedtabs.caret_position` | `icon` | `icon` (in place of the favicon, on hover and while collapsed), `edge` (far right, after the close button), `right` (before the close button) or `left` (before the favicon) |
 
 ## Debugging
 

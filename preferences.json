@@ -17,8 +17,12 @@
     "label": "Expand/collapse caret position",
     "type": "dropdown",
     "placeholder": false,
-    "defaultValue": "edge",
+    "defaultValue": "icon",
     "options": [
+      {
+        "label": "In place of the icon, on hover",
+        "value": "icon"
+      },
       {
         "label": "Far right, after the close button",
         "value": "edge"
@@ -58,14 +62,14 @@
     "property": "mod.nestedtabs.show_count",
     "label": "Show the number of hidden tabs on collapsed parents",
     "type": "checkbox",
-    "defaultValue": true
+    "defaultValue": false
   },
   {
     "property": "mod.nestedtabs.close_behavior",
     "label": "When closing a parent tab",
     "type": "dropdown",
     "placeholder": "Select behavior",
-    "defaultValue": "promote",
+    "defaultValue": "close_collapsed",
     "options": [
       {
         "label": "Close the whole tree",
