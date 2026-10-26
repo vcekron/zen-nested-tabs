@@ -49,6 +49,9 @@ Zen Mods from the official store are CSS only. CSS can indent and hide tabs, but
 3. Open **Settings → Sine Mods** and add the mod by entering `vcekron/zen-nested-tabs`.
 4. Sine only runs JavaScript from mods outside its store if you allow it. Turn on Sine's option to allow unsafe JS for non-store mods, then restart Zen.
 
+> [!WARNING]
+> **What you are trusting.** The script runs with full browser privileges: it can do anything Zen itself can, including reading your files, cookies and saved passwords. Sine's unsafe JS option is global, so it lets *every* non-store mod you install run JavaScript, not just this one. Sine also auto-updates mods from the `main` branch of their repository. To review each update before it runs, turn off auto-updating for this mod in Sine's mod list and read the [commit history](https://github.com/vcekron/zen-nested-tabs/commits/main) before updating by hand.
+
 ### Option B: fx-autoconfig by hand
 
 1. Install [fx-autoconfig](https://github.com/MrOtherGuy/fx-autoconfig) for Zen. [zen-autoconfig-script](https://github.com/RayZ3R0/zen-autoconfig-script) can do this for you.
