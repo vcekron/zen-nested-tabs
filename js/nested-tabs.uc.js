@@ -83,6 +83,7 @@
   const KEY_ID = "zenNestedTabsId";
   const KEY_PARENT = "zenNestedTabsParent";
   const KEY_COLLAPSED = "zenNestedTabsCollapsed";
+  const KEY_PROMOTIONS = "zenNestedTabsPromotions";
 
   // browser.xhtml already exposes SessionStore as a window global. The module
   // moved from resource:///modules/ to moz-src:/// in newer Firefox, so only
@@ -168,6 +169,11 @@
       tab._ntId = ss.getCustomTabValue(tab, KEY_ID) || tab._ntId || newId();
       tab._ntParentId = ss.getCustomTabValue(tab, KEY_PARENT) || null;
       tab._ntCollapsed = ss.getCustomTabValue(tab, KEY_COLLAPSED) === "true";
+      try {
+        tab._ntPromotions = JSON.parse(ss.getCustomTabValue(tab, KEY_PROMOTIONS) || "[]");
+      } catch (e) {
+        tab._ntPromotions = [];
+      }
       ss.setCustomTabValue(tab, KEY_ID, tab._ntId);
     }
 
@@ -185,6 +191,11 @@
           ss.setCustomTabValue(tab, KEY_COLLAPSED, "true");
         } else {
           ss.deleteCustomTabValue(tab, KEY_COLLAPSED);
+        }
+        if (tab._ntPromotions?.length) {
+          ss.setCustomTabValue(tab, KEY_PROMOTIONS, JSON.stringify(tab._ntPromotions));
+        } else {
+          ss.deleteCustomTabValue(tab, KEY_PROMOTIONS);
         }
         tab._ntPersisted = true;
       } catch (e) {
@@ -257,11 +268,16 @@
 
     // -- Mutations --------------------------------------------------------------
 
-    setParent(tab, parent) {
+    /**
+     * `promotions` is the stack of { from, to } parent ids recorded when this
+     * tab was moved up because its parent closed; any other move clears it.
+     */
+    setParent(tab, parent, promotions = []) {
       if (parent && (parent === tab || this.#isAncestor(tab, parent))) {
         return; // would create a cycle
       }
       tab._ntParentId = parent ? parent._ntId : null;
+      tab._ntPromotions = promotions;
       this.#save(tab);
     }
 
@@ -849,6 +865,7 @@
       tab._ntId ??= newId();
       tab._ntParentId = null;
       tab._ntCollapsed = false;
+      tab._ntPromotions = [];
       this.#save(tab);
 
       // Only real "opened from this page" relations. `tab.owner` is also set
@@ -902,8 +919,10 @@
         const descendants = this.descendantsOf(tab);
         setTimeout(() => gBrowser.removeTabs(descendants.filter(t => t.isConnected && !t.closing)), 0);
       } else {
+        const grandparent = this.parentOf(tab);
+        const promotion = { from: tab._ntId, to: grandparent?._ntId ?? null };
         for (const child of children) {
-          this.setParent(child, this.parentOf(tab));
+          this.setParent(child, grandparent, [...(child._ntPromotions || []), promotion]);
         }
       }
       this.scheduleNormalize();
@@ -921,12 +940,39 @@
         tab._ntId = newId();
         tab._ntParentId = original._ntParentId;
         tab._ntCollapsed = false;
+        tab._ntPromotions = [];
         this.#save(tab);
         if (tab.parentNode === original.parentNode) {
           this.#moveAfter(tab, this.descendantsOf(original).at(-1) || original);
         }
+      } else {
+        this.#reclaimPromotedChildren(tab);
       }
       this.scheduleNormalize();
+    }
+
+    /**
+     * Undo the promotion done by #onTabClose: tabs that were moved up when
+     * `tab` closed, and have not been moved since, become its children again.
+     */
+    #reclaimPromotedChildren(tab) {
+      const reclaimed = gBrowser.tabs.filter(t => {
+        const last = t._ntPromotions?.at(-1);
+        return (
+          last?.from === tab._ntId &&
+          last.to === (tab._ntParentId ?? null) &&
+          t._ntParentId === last.to &&
+          t.parentNode === tab.parentNode &&
+          this.isEligible(t)
+        );
+      });
+      if (!reclaimed.length) {
+        return;
+      }
+      for (const child of reclaimed) {
+        this.setParent(child, tab, child._ntPromotions.slice(0, -1));
+      }
+      this.#bringDescendants(tab, this.descendantsOf(tab));
     }
 
     /**
