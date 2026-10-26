@@ -107,6 +107,10 @@
 
   const newId = () => Services.uuid.generateUUID().toString().slice(1, -1);
 
+  // Grabbing a tab by its title text makes the label's text node the dragstart target.
+  const targetElement = event =>
+    event.target?.nodeType === Node.TEXT_NODE ? event.target.parentElement : event.target;
+
   /** Parse a KEY_CLOSED_WITH value: { root, order } or null. */
   const parseClosedWith = value => {
     try {
@@ -958,7 +962,7 @@
     }
 
     #onTwistyEvent(event) {
-      const twisty = event.target.closest?.(".nt-twisty");
+      const twisty = targetElement(event)?.closest?.(".nt-twisty");
       if (!twisty) {
         return;
       }
@@ -1225,7 +1229,7 @@
 
     #onDragStart(event) {
       this.#endDrag();
-      const tab = event.target.closest?.(".tabbrowser-tab");
+      const tab = targetElement(event)?.closest?.(".tabbrowser-tab");
       if (
         !tab ||
         !this.isEligible(tab) ||
@@ -1254,7 +1258,7 @@
     /** Is the pointer over the dragged tab's own list (where we own the drop)? */
     #isOverOwnList(event) {
       const list = this.#drag?.list;
-      const node = event.target;
+      const node = targetElement(event);
       if (!list || !node?.closest) {
         return false;
       }
