@@ -480,6 +480,7 @@
         return;
       }
       this.#applyListChanges();
+      this.#repairOrder();
 
       const map = this.#idMap();
       const activeSpace = window.gZenWorkspaces?.activeWorkspace;
@@ -584,6 +585,93 @@
           }
         }
       }
+    }
+
+    /** The tab's parent if it is a live, placed tab in the same list, else null. */
+    #liveParent(tab, map) {
+      const parent = this.parentOf(tab, map);
+      return parent && this.isEligible(parent) && !parent._ntPending && parent.parentNode === tab.parentNode
+        ? parent
+        : null;
+    }
+
+    /** Whether `tab` is `ancestor` or below it, following live parents only. */
+    #inBlock(ancestor, tab, map) {
+      for (let t = tab, guard = 0; t && guard < 1000; t = this.#liveParent(t, map), guard++) {
+        if (t === ancestor) {
+          return true;
+        }
+      }
+      return false;
+    }
+
+    /** Whether `tab` hangs below a tab whose parent is closed or not placed yet. */
+    #isFloating(tab, map) {
+      let root = tab;
+      for (let p = this.#liveParent(root, map), guard = 0; p && guard < 1000; p = this.#liveParent(p, map), guard++) {
+        root = p;
+      }
+      return !!root._ntParentId;
+    }
+
+    /**
+     * The first tab, in sidebar order, that sits outside its parent's block:
+     * the tab above it is neither its parent nor in its parent's subtree.
+     * Floating subtrees (see #isFloating) are looked through unless they are
+     * the parent's own.
+     */
+    #findMisplaced(map) {
+      const lastAny = new Map(); // list -> last placed tab
+      const lastFixed = new Map(); // list -> last placed tab that is not floating
+      for (const tab of gBrowser.tabs) {
+        if (!this.isEligible(tab) || tab._ntPending) {
+          continue;
+        }
+        const list = tab.parentNode;
+        const parent = this.#liveParent(tab, map);
+        const prev = lastAny.get(list);
+        const placed =
+          this.#inBlock(parent, prev, map) ||
+          (prev && this.#isFloating(prev, map) && this.#inBlock(parent, lastFixed.get(list), map));
+        if (parent && !placed) {
+          return { tab, parent };
+        }
+        lastAny.set(list, tab);
+        if (!this.#isFloating(tab, map)) {
+          lastFixed.set(list, tab);
+        }
+      }
+      return null;
+    }
+
+    /** Move every misplaced tab, with its subtree, to the end of its parent's block. */
+    #repairOrder() {
+      const map = this.#idMap();
+      for (let pass = 0; pass < 200; pass++) {
+        const misplaced = this.#findMisplaced(map);
+        if (!misplaced) {
+          return;
+        }
+        const { tab, parent } = misplaced;
+        const subtree = this.descendantsOf(tab);
+        const moving = new Set([tab, ...subtree]);
+        const parentFloats = this.#isFloating(parent, map);
+        const list = this.#siblingsInContainer(parent);
+        let anchor = parent;
+        for (const t of list.slice(list.indexOf(parent) + 1)) {
+          if (moving.has(t) || t._ntPending) {
+            continue;
+          }
+          if (this.#inBlock(parent, t, map)) {
+            anchor = t;
+          } else if (parentFloats || !this.#isFloating(t, map)) {
+            break;
+          }
+        }
+        this.#moveAfter(tab, anchor);
+        this.#bringDescendants(tab, subtree);
+      }
+      console.warn("[Zen Nested Tabs] gave up repairing tab order");
     }
 
     #renderTab(tab, depth, hidden, descendants) {
