@@ -44,6 +44,13 @@
       calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 - 0.5px),
     transparent calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 + 0.5px)
   );
+  --nt-arc-image-rtl: radial-gradient(
+    circle at 0 0,
+    transparent calc(var(--nt-connector-radius) - var(--nt-connector-width) / 2 - 0.5px),
+    currentColor calc(var(--nt-connector-radius) - var(--nt-connector-width) / 2 + 0.5px)
+      calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 - 0.5px),
+    transparent calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 + 0.5px)
+  );
 }
 
 /* ---------------------------------------------------------------------------
@@ -169,9 +176,12 @@
 }
 
 /* ---------------------------------------------------------------------------
-   Indent guide lines (TST "Indent Line" look, but quieter)
+   Tree lines layer, shared by guides and connectors. It spans the row's
+   indent and the tab. While Zen shrinks a pressed tab (scale:
+   var(--zen-active-tab-scale)), it scales by the inverse around the tab's
+   center.
    --------------------------------------------------------------------------- */
-@media (-moz-pref("mod.nestedtabs.tree_lines", "guides")) {
+@media (-moz-pref("mod.nestedtabs.tree_lines", "guides")), (-moz-pref("mod.nestedtabs.tree_lines", "connectors")) {
   :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack {
     position: relative;
 
@@ -182,24 +192,49 @@
       /* The script measures the gap between rows and sets the overhang to half
          of it, so neighbouring segments meet exactly instead of overlapping. */
       inset-block: calc(-1 * var(--nt-guide-overhang, 0px));
-      inset-inline-start: calc(var(--nt-depth) * var(--nt-indent) * -1);
-      width: calc(var(--nt-depth) * var(--nt-indent));
-      background-image: repeating-linear-gradient(
+      inset-inline: calc(var(--nt-depth) * var(--nt-indent) * -1) 0;
+      transform-origin: calc((100% + var(--nt-depth) * var(--nt-indent)) / 2) 50%;
+
+      @media not (prefers-reduced-motion: reduce) {
+        transition: scale 0.1s ease;
+      }
+
+      :root:-moz-locale-dir(rtl) & {
+        transform-origin: calc((100% - var(--nt-depth) * var(--nt-indent)) / 2) 50%;
+      }
+    }
+  }
+
+  :root:not([zen-renaming-tab="true"])
+    #tabbrowser-tabs:not([movingtab])
+    .tabbrowser-tab:active:not(:has(.tab-content > image:active))
+    > .tab-stack::before {
+    scale: calc(1 / var(--zen-active-tab-scale, 1));
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Indent guide lines (TST "Indent Line" look, but quieter)
+   --------------------------------------------------------------------------- */
+@media (-moz-pref("mod.nestedtabs.tree_lines", "guides")) {
+  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack::before {
+    background: repeating-linear-gradient(
         to right,
         transparent 0 calc(var(--nt-trunk-x) - 0.5px),
         var(--nt-guide-color) calc(var(--nt-trunk-x) - 0.5px) calc(var(--nt-trunk-x) + 0.5px),
         transparent calc(var(--nt-trunk-x) + 0.5px) var(--nt-indent)
-      );
-    }
-  }
+      )
+      0 0 / calc(var(--nt-depth) * var(--nt-indent)) 100% no-repeat;
 
-  :root:-moz-locale-dir(rtl)[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"]) > .tab-stack::before {
-    background-image: repeating-linear-gradient(
-      to left,
-      transparent 0 calc(var(--nt-trunk-x) - 0.5px),
-      var(--nt-guide-color) calc(var(--nt-trunk-x) - 0.5px) calc(var(--nt-trunk-x) + 0.5px),
-      transparent calc(var(--nt-trunk-x) + 0.5px) var(--nt-indent)
-    );
+    :root:-moz-locale-dir(rtl) & {
+      background: repeating-linear-gradient(
+          to left,
+          transparent 0 calc(var(--nt-trunk-x) - 0.5px),
+          var(--nt-guide-color) calc(var(--nt-trunk-x) - 0.5px) calc(var(--nt-trunk-x) + 0.5px),
+          transparent calc(var(--nt-trunk-x) + 0.5px) var(--nt-indent)
+        )
+        100% 0 / calc(var(--nt-depth) * var(--nt-indent)) 100% no-repeat;
+    }
   }
 }
 
@@ -209,23 +244,9 @@
    lines are background layers of one element (--nt-rails, set by the script).
    --------------------------------------------------------------------------- */
 @media (-moz-pref("mod.nestedtabs.tree_lines", "connectors")) {
-  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack {
-    position: relative;
-
-    &::before {
-      content: "";
-      position: absolute;
-      pointer-events: none;
-      inset-block: calc(-1 * var(--nt-guide-overhang, 0px));
-      inset-inline-start: calc(var(--nt-depth) * var(--nt-indent) * -1);
-      width: calc(var(--nt-depth) * var(--nt-indent) + var(--nt-branch-overlap));
-      background: var(--nt-rails, none);
-      opacity: var(--nt-connector-opacity);
-    }
-  }
-
-  :root:-moz-locale-dir(rtl) .tabbrowser-tab[nt-depth] > .tab-stack::before {
-    transform: scaleX(-1);
+  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack::before {
+    background: var(--nt-rails, none);
+    opacity: var(--nt-connector-opacity);
   }
 }
 

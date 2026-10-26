@@ -46,23 +46,29 @@
   const PREF_TREE_LINES = "mod.nestedtabs.tree_lines";
   const PREF_SHOW_GUIDES_OLD = "mod.nestedtabs.show_guides";
 
-  /** Left edge of a line under the icon of the depth-`column` ancestor. */
+  /** Start edge of a line under the icon of the depth-`column` ancestor, from the row's start. */
   const columnX = column => `calc(${column} * var(--nt-indent) + var(--nt-trunk-x) - var(--nt-connector-width) / 2)`;
 
+  /** A background-position `x` from the row's inline start and `y` from the top. */
+  const layerPosition = (x, y, rtl) => (rtl ? `right ${x} top ${y}` : `${x} ${y}`);
+
   /** A full-height vertical line in indent column `column` (│). */
-  const railLayer = column => `var(--nt-rail-image) ${columnX(column)} 0 / var(--nt-connector-width) 100% no-repeat`;
+  const railLayer = (column, rtl) =>
+    `var(--nt-rail-image) ${layerPosition(columnX(column), "0px", rtl)} / var(--nt-connector-width) 100% no-repeat`;
 
   /**
    * The row's own branch in its last indent column: the line down from the
    * row above, the arc and the line into the tab. `continues` keeps the
    * vertical line going to the row below (├ instead of ╰).
    */
-  const branchLayers = (column, continues) => [
-    `${continues ? "var(--nt-rail-image)" : "var(--nt-rail-top-image)"} ${columnX(column)} 0 / ` +
-      "var(--nt-connector-width) 100% no-repeat",
-    `var(--nt-arc-image) ${columnX(column)} var(--nt-arc-y) / var(--nt-arc-size) var(--nt-arc-size) no-repeat`,
-    `var(--nt-rail-image) calc(${column} * var(--nt-indent) + var(--nt-trunk-x) + var(--nt-connector-radius)) 50% / ` +
-      "var(--nt-branch-length) var(--nt-connector-width) no-repeat",
+  const branchLayers = (column, continues, rtl) => [
+    `${continues ? "var(--nt-rail-image)" : "var(--nt-rail-top-image)"} ` +
+      `${layerPosition(columnX(column), "0px", rtl)} / var(--nt-connector-width) 100% no-repeat`,
+    `${rtl ? "var(--nt-arc-image-rtl)" : "var(--nt-arc-image)"} ` +
+      `${layerPosition(columnX(column), "var(--nt-arc-y)", rtl)} / var(--nt-arc-size) var(--nt-arc-size) no-repeat`,
+    "var(--nt-rail-image) " +
+      layerPosition(`calc(${column} * var(--nt-indent) + var(--nt-trunk-x) + var(--nt-connector-radius))`, "50%", rtl) +
+      " / var(--nt-branch-length) var(--nt-connector-width) no-repeat",
   ];
 
   /**
@@ -592,15 +598,16 @@
           lastChild.set(ancestors[0], tab);
         }
       }
+      const rtl = document.documentElement.matches(":-moz-locale-dir(rtl)");
       for (const [tab, { depth, ancestors }] of info) {
         const chain = [tab, ...ancestors]; // chain[k] is at depth (depth - k)
         const rails = [];
         for (let column = 0; column < depth; column++) {
           const continues = lastChild.get(chain[depth - column]) !== chain[depth - 1 - column];
           if (column === depth - 1) {
-            rails.push(...branchLayers(column, continues));
+            rails.push(...branchLayers(column, continues, rtl));
           } else if (continues) {
-            rails.push(railLayer(column));
+            rails.push(railLayer(column, rtl));
           }
         }
         const value = rails.join(", ") || "none";
