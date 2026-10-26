@@ -34,10 +34,25 @@
     ]
   },
   {
-    "property": "mod.nestedtabs.show_guides",
-    "label": "Show faint indent guide lines",
-    "type": "checkbox",
-    "defaultValue": true
+    "property": "mod.nestedtabs.tree_lines",
+    "label": "Tree lines",
+    "type": "dropdown",
+    "placeholder": false,
+    "defaultValue": "connectors",
+    "options": [
+      {
+        "label": "Connectors",
+        "value": "connectors"
+      },
+      {
+        "label": "Faint indent guides",
+        "value": "guides"
+      },
+      {
+        "label": "Off",
+        "value": "off"
+      }
+    ]
   },
   {
     "property": "mod.nestedtabs.show_count",

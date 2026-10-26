@@ -7,6 +7,8 @@
  *   nt-has-children            tab is a parent, shows the caret
  *   nt-collapsed               parent whose subtree is folded
  *   nt-hidden                  tab sits under a folded ancestor
+ *   --nt-rails                 tree-connector lines passing through the row
+ *   --nt-icon-x (on :root)     center of a parent tab's icon, from its row start
  *
  * Essentials ([zen-essential]) never receive any of these.
  */
@@ -15,6 +17,33 @@
   --nt-indent: 16px; /* fallback; the script sets this from mod.nestedtabs.indent */
   --nt-guide-color: color-mix(in srgb, currentColor 14%, transparent);
   --nt-twisty-size: 16px;
+
+  /* Tree connectors (--nt-rails layers): currentColor lines, made translucent as one. */
+  --nt-connector-opacity: 0.25;
+  --nt-connector-width: 2px;
+  --nt-connector-radius: 7px; /* of the line's center, like an SVG arc */
+  --nt-branch-overlap: 2px; /* how far a branch reaches into the child's row */
+
+  /* Under the parent's icon, or further left if the indent leaves no room for the arc. */
+  --nt-trunk-x: min(
+    var(--nt-icon-x, 16px),
+    calc(var(--nt-indent) - var(--nt-connector-radius) + var(--nt-branch-overlap))
+  );
+  --nt-branch-length: calc(
+    var(--nt-indent) + var(--nt-branch-overlap) - var(--nt-trunk-x) - var(--nt-connector-radius)
+  );
+
+  --nt-rail-image: linear-gradient(currentColor, currentColor);
+  --nt-rail-top-image: linear-gradient(currentColor calc(50% - var(--nt-connector-radius)), transparent 0);
+  --nt-arc-size: calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2);
+  --nt-arc-y: calc(50% - var(--nt-connector-radius) / 2 + var(--nt-connector-width) / 4);
+  --nt-arc-image: radial-gradient(
+    circle at 100% 0,
+    transparent calc(var(--nt-connector-radius) - var(--nt-connector-width) / 2 - 0.5px),
+    currentColor calc(var(--nt-connector-radius) - var(--nt-connector-width) / 2 + 0.5px)
+      calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 - 0.5px),
+    transparent calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 + 0.5px)
+  );
 }
 
 /* ---------------------------------------------------------------------------
@@ -142,7 +171,7 @@
 /* ---------------------------------------------------------------------------
    Indent guide lines (TST "Indent Line" look, but quieter)
    --------------------------------------------------------------------------- */
-@media (-moz-pref("mod.nestedtabs.show_guides")) {
+@media (-moz-pref("mod.nestedtabs.tree_lines", "guides")) {
   :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack {
     position: relative;
 
@@ -157,9 +186,9 @@
       width: calc(var(--nt-depth) * var(--nt-indent));
       background-image: repeating-linear-gradient(
         to right,
-        transparent 0 calc(var(--nt-indent) / 2 - 0.5px),
-        var(--nt-guide-color) calc(var(--nt-indent) / 2 - 0.5px) calc(var(--nt-indent) / 2 + 0.5px),
-        transparent calc(var(--nt-indent) / 2 + 0.5px) var(--nt-indent)
+        transparent 0 calc(var(--nt-trunk-x) - 0.5px),
+        var(--nt-guide-color) calc(var(--nt-trunk-x) - 0.5px) calc(var(--nt-trunk-x) + 0.5px),
+        transparent calc(var(--nt-trunk-x) + 0.5px) var(--nt-indent)
       );
     }
   }
@@ -167,10 +196,36 @@
   :root:-moz-locale-dir(rtl)[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"]) > .tab-stack::before {
     background-image: repeating-linear-gradient(
       to left,
-      transparent 0 calc(var(--nt-indent) / 2 - 0.5px),
-      var(--nt-guide-color) calc(var(--nt-indent) / 2 - 0.5px) calc(var(--nt-indent) / 2 + 0.5px),
-      transparent calc(var(--nt-indent) / 2 + 0.5px) var(--nt-indent)
+      transparent 0 calc(var(--nt-trunk-x) - 0.5px),
+      var(--nt-guide-color) calc(var(--nt-trunk-x) - 0.5px) calc(var(--nt-trunk-x) + 0.5px),
+      transparent calc(var(--nt-trunk-x) + 0.5px) var(--nt-indent)
     );
+  }
+}
+
+/* ---------------------------------------------------------------------------
+   Tree connectors: ├ and ╰ branches from under the parent's icon to the
+   row's vertical center, with │ only where a tree continues. All of a row's
+   lines are background layers of one element (--nt-rails, set by the script).
+   --------------------------------------------------------------------------- */
+@media (-moz-pref("mod.nestedtabs.tree_lines", "connectors")) {
+  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack {
+    position: relative;
+
+    &::before {
+      content: "";
+      position: absolute;
+      pointer-events: none;
+      inset-block: calc(-1 * var(--nt-guide-overhang, 0px));
+      inset-inline-start: calc(var(--nt-depth) * var(--nt-indent) * -1);
+      width: calc(var(--nt-depth) * var(--nt-indent) + var(--nt-branch-overlap));
+      background: var(--nt-rails, none);
+      opacity: var(--nt-connector-opacity);
+    }
+  }
+
+  :root:-moz-locale-dir(rtl) .tabbrowser-tab[nt-depth] > .tab-stack::before {
+    transform: scaleX(-1);
   }
 }
 

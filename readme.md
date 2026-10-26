@@ -8,6 +8,7 @@ This is a fork of [nigeltroy-gpt0/zen-nested-tabs](https://github.com/nigeltroy-
 
 - **Automatic nesting.** A tab opened from a link (middle-click, `target=_blank`, `window.open`) becomes a child of the tab that opened it and goes to the end of that tab's children. New tabs from Ctrl/Cmd+T, bookmarks and the URL bar stay at the top level. You can turn this off in the mod's preferences.
 - **16px per level by default.** Each level is indented 16px; change it with the *Indent per nesting level* setting (4–64px). Changes apply immediately. Inside a Zen folder, the indent is added on top of the folder's own indent.
+- **Tree lines.** By default, rounded connectors (├, ╰) run from under the parent's icon to each child's vertical center, with a vertical line only where a tree continues below. With an indent below about 25px, the line moves left of the icon to leave room for the branch. An indent of 26px puts tabs at the same positions as folder contents with Zen Folder Tree Connectors installed. The *Tree lines* setting can switch to faint indent guides or turn the lines off. The connector look is inspired by [Zen Folder Tree Connectors](https://github.com/JustAdumbPrsn/ZenFolderTreeConnectors).
 - **Carets.** Every tab that has children shows a caret at the far right edge of the tab. The close button appears to its left on hover, so it never slides into the caret's spot. The *Expand/collapse caret position* setting can instead put the caret just before the close button, or on the left before the favicon. Click it to collapse or expand that tree. Ctrl/Cmd-click collapses or expands every level below it. A collapsed parent shows how many tabs it is hiding (you can turn this off).
 - **The sidebar grows with nesting.** The minimum sidebar width is Zen's own minimum plus one indent (16px by default) for each visible level. If a new level doesn't fit, the sidebar widens to the new minimum. When nesting gets shallower, the minimum drops, so you can drag the sidebar narrower again, but the mod never shrinks it for you. Zen's drag-to-resize respects the same minimum.
 - **Essentials are never nested.** Essentials, Glance previews and Zen's empty placeholder tab are left out completely.
@@ -66,7 +67,7 @@ Zen Mods from the official store are CSS only. CSS can indent and hide tabs, but
 | --- | --- | --- |
 | `mod.nestedtabs.auto_nest` | `true` | Nest tabs opened from links |
 | `mod.nestedtabs.indent` | `16` | Indent per nesting level in px (4–64); also sets how much the sidebar's minimum width grows per level |
-| `mod.nestedtabs.show_guides` | `true` | Faint vertical guide lines for each level |
+| `mod.nestedtabs.tree_lines` | `connectors` | `connectors` (rounded tree connectors), `guides` (faint vertical guide lines for each level) or `off` |
 | `mod.nestedtabs.show_count` | `true` | Hidden-tab count on collapsed parents |
 | `mod.nestedtabs.close_behavior` | `promote` | `close_all`, `close_collapsed` or `promote` |
 | `mod.nestedtabs.caret_position` | `edge` | `edge` (far right, after the close button), `right` (before the close button) or `left` (before the favicon) |

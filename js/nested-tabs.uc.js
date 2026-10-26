@@ -43,6 +43,27 @@
   const PREF_CLOSE_BEHAVIOR = "mod.nestedtabs.close_behavior";
   const PREF_INDENT = "mod.nestedtabs.indent";
   const PREF_CARET_POSITION = "mod.nestedtabs.caret_position";
+  const PREF_TREE_LINES = "mod.nestedtabs.tree_lines";
+  const PREF_SHOW_GUIDES_OLD = "mod.nestedtabs.show_guides";
+
+  /** Left edge of a line under the icon of the depth-`column` ancestor. */
+  const columnX = column => `calc(${column} * var(--nt-indent) + var(--nt-trunk-x) - var(--nt-connector-width) / 2)`;
+
+  /** A full-height vertical line in indent column `column` (│). */
+  const railLayer = column => `var(--nt-rail-image) ${columnX(column)} 0 / var(--nt-connector-width) 100% no-repeat`;
+
+  /**
+   * The row's own branch in its last indent column: the line down from the
+   * row above, the arc and the line into the tab. `continues` keeps the
+   * vertical line going to the row below (├ instead of ╰).
+   */
+  const branchLayers = (column, continues) => [
+    `${continues ? "var(--nt-rail-image)" : "var(--nt-rail-top-image)"} ${columnX(column)} 0 / ` +
+      "var(--nt-connector-width) 100% no-repeat",
+    `var(--nt-arc-image) ${columnX(column)} var(--nt-arc-y) / var(--nt-arc-size) var(--nt-arc-size) no-repeat`,
+    `var(--nt-rail-image) calc(${column} * var(--nt-indent) + var(--nt-trunk-x) + var(--nt-connector-radius)) 50% / ` +
+      "var(--nt-branch-length) var(--nt-connector-width) no-repeat",
+  ];
 
   /**
    * Where the caret sits:
@@ -138,10 +159,11 @@
       // CSS -moz-pref() queries treat a missing pref as false.
       const defaults = Services.prefs.getDefaultBranch("");
       defaults.setBoolPref(PREF_AUTO_NEST, true);
-      defaults.setBoolPref("mod.nestedtabs.show_guides", true);
+      defaults.setStringPref(PREF_TREE_LINES, "connectors");
       defaults.setBoolPref("mod.nestedtabs.show_count", true);
       defaults.setStringPref(PREF_CLOSE_BEHAVIOR, "promote");
       defaults.setStringPref(PREF_CARET_POSITION, "edge");
+      this.#migrateShowGuides();
 
       await this.#whenDelayedStartupFinished();
       await window.gZenWorkspaces?.promiseInitialized;
@@ -540,8 +562,70 @@
         this.#renderTab(tab, depth, hidden, descendants);
       }
 
+      this.#renderTreeLines(info);
       this.#updateSidebarWidth(maxVisibleDepth);
       this.#updateGuideGap();
+      this.#updateIconOffset();
+    }
+
+    /** A choice made with the old show_guides checkbox carries over to tree_lines. */
+    #migrateShowGuides() {
+      const prefs = Services.prefs;
+      if (!prefs.prefHasUserValue(PREF_SHOW_GUIDES_OLD)) {
+        return;
+      }
+      if (!prefs.prefHasUserValue(PREF_TREE_LINES) && prefs.getPrefType(PREF_SHOW_GUIDES_OLD) === prefs.PREF_BOOL) {
+        prefs.setStringPref(PREF_TREE_LINES, prefs.getBoolPref(PREF_SHOW_GUIDES_OLD) ? "guides" : "off");
+      }
+      prefs.clearUserPref(PREF_SHOW_GUIDES_OLD);
+    }
+
+    /**
+     * Sets --nt-rails on every tree tab: the tab's own branch in its last
+     * indent column, plus a vertical line in each earlier column whose tab on
+     * this tab's ancestor chain has a later visible sibling.
+     */
+    #renderTreeLines(info) {
+      const lastChild = new Map(); // parent -> its last visible child
+      for (const [tab, { hidden, ancestors }] of info) {
+        if (!hidden && ancestors.length) {
+          lastChild.set(ancestors[0], tab);
+        }
+      }
+      for (const [tab, { depth, ancestors }] of info) {
+        const chain = [tab, ...ancestors]; // chain[k] is at depth (depth - k)
+        const rails = [];
+        for (let column = 0; column < depth; column++) {
+          const continues = lastChild.get(chain[depth - column]) !== chain[depth - 1 - column];
+          if (column === depth - 1) {
+            rails.push(...branchLayers(column, continues));
+          } else if (continues) {
+            rails.push(railLayer(column));
+          }
+        }
+        const value = rails.join(", ") || "none";
+        if (tab.style.getPropertyValue("--nt-rails") !== value) {
+          tab.style.setProperty("--nt-rails", value);
+        }
+      }
+    }
+
+    /** Sets --nt-icon-x: the center of a parent tab's icon, from the start of its row. */
+    #updateIconOffset() {
+      const tab = gBrowser.tabs.find(t => t.hasAttribute("nt-has-children") && !t.hasAttribute("nt-hidden") && !t.hidden);
+      const stack = tab?.querySelector(".tab-stack")?.getBoundingClientRect();
+      const icon = [".tab-icon-image", ".tab-icon-stack"]
+        .map(selector => tab?.querySelector(selector)?.getBoundingClientRect())
+        .find(rect => rect?.width);
+      if (!stack?.width || !icon?.width) {
+        return;
+      }
+      const isRTL = document.documentElement.matches(":-moz-locale-dir(rtl)");
+      const center = isRTL ? stack.right - (icon.left + icon.width / 2) : icon.left + icon.width / 2 - stack.left;
+      const value = `${Math.round(center * 100) / 100}px`;
+      if (document.documentElement.style.getPropertyValue("--nt-icon-x") !== value) {
+        document.documentElement.style.setProperty("--nt-icon-x", value);
+      }
     }
 
     /**
@@ -719,6 +803,7 @@
         tab.removeAttribute(attr);
       }
       tab.style.removeProperty("--nt-depth");
+      tab.style.removeProperty("--nt-rails");
     }
 
     #ensureDecorations(tab) {
