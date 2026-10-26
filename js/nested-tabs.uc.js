@@ -188,6 +188,10 @@
     }
 
     #save(tab) {
+      // A closing tab's values are shared with its closed-tab (undo) data.
+      if (tab.closing) {
+        return;
+      }
       const ss = lazy.SessionStore;
       try {
         tab._ntId ??= newId();
