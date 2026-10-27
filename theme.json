@@ -1,22 +1,20 @@
 {
-  "id": "zen-nested-tabs",
-  "name": "Zen Nested Tabs",
-  "description": "Tree Style Tab-like nesting for Zen's vertical tabs, with collapsible carets.",
-  "homepage": "https://github.com/vcekron/zen-nested-tabs",
-  "author": "nigel (fork: vcekron)",
-  "version": "1.1.0",
+  "id": "zen-tab-trees",
+  "name": "Zen Tab Trees",
+  "description": "Tree-style tab nesting with tree connectors for tabs, pinned tabs and folders.",
+  "homepage": "https://github.com/vcekron/zen-tab-trees",
+  "author": "vcekron",
+  "version": "2.0.0",
   "tags": ["tabs", "tree", "sidebar"],
-  "createdAt": "2026-10-09",
-  "updatedAt": "2026-10-26T15:16:39Z",
+  "createdAt": "2026-10-26",
+  "updatedAt": "2026-10-27T09:40:08Z",
+  "readme": "README.md",
   "style": {
     "chrome": "chrome.css"
   },
-  "preferences": "preferences.json",
-  "readme": "readme.md",
   "scripts": {
-    "js/nested-tabs.uc.js": {
-      "name": "Nested tabs core",
-      "description": "Tracks the tab tree, carets, collapsing and sidebar width.",
+    "js/zen-tab-trees.uc.mjs": {
+      "name": "Zen Tab Trees",
       "include": ["chrome://browser/content/browser.xhtml"]
     }
   },

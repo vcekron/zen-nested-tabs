@@ -1,411 +1,217 @@
-/* Zen Nested Tabs
- *
- * Visual layer for the tab tree. The JS (js/nested-tabs.uc.js) only sets
- * attributes on tabs; everything you see is styled here:
- *
- *   nt-depth="N" + --nt-depth  nesting level (0 = root)
- *   nt-has-children            tab is a parent, shows the caret
- *   nt-collapsed               parent whose subtree is folded
- *   nt-hidden                  tab sits under a folded ancestor
- *   --nt-rails                 tree-connector lines passing through the row
- *   --nt-icon-x (on :root)     center of a parent tab's icon, from its row start
- *
- * Essentials ([zen-essential]) never receive any of these.
- */
-
 :root {
-  --nt-indent: 26px; /* fallback; the script sets this from mod.nestedtabs.indent */
-  --nt-guide-color: color-mix(in srgb, currentColor 14%, transparent);
-  --nt-twisty-size: 16px;
+  --ztt-trunk-max: calc(var(--ztt-indent) - var(--ztt-arc-radius) + var(--ztt-branch-reach));
+  --ztt-trunk-x-tab: min(var(--ztt-tab-icon-x), var(--ztt-trunk-max));
+  --ztt-trunk-x-folder: min(var(--ztt-folder-icon-x), var(--ztt-trunk-max));
+  --ztt-branch-length-tab: calc(var(--ztt-trunk-max) - var(--ztt-trunk-x-tab));
+  --ztt-branch-length-folder: calc(var(--ztt-trunk-max) - var(--ztt-trunk-x-folder));
+  --ztt-folder-extra: calc(var(--ztt-indent) - var(--ztt-zen-folder-step));
 
-  /* Tree connectors (--nt-rails layers): currentColor lines, made translucent as one. */
-  --nt-connector-opacity: 0.25;
-  --nt-connector-hover-opacity: 0.5;
-  --nt-hit-width: 12px; /* clickable width around a line */
-  --nt-connector-width: 2px;
-  --nt-connector-radius: 7px; /* of the line's center, like an SVG arc */
-  --nt-branch-overlap: 2px; /* how far a branch reaches into the child's row */
-
-  /* Under the parent's icon, or further left if the indent leaves no room for the arc. */
-  --nt-trunk-x: min(
-    var(--nt-icon-x, 16px),
-    calc(var(--nt-indent) - var(--nt-connector-radius) + var(--nt-branch-overlap))
-  );
-  --nt-branch-length: calc(
-    var(--nt-indent) + var(--nt-branch-overlap) - var(--nt-trunk-x) - var(--nt-connector-radius)
-  );
-
-  --nt-rail-image: linear-gradient(currentColor, currentColor);
-  --nt-rail-top-image: linear-gradient(currentColor calc(50% - var(--nt-connector-radius)), transparent 0);
-  --nt-arc-size: calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2);
-  --nt-arc-y: calc(50% - var(--nt-connector-radius) / 2 + var(--nt-connector-width) / 4);
-  --nt-arc-image: radial-gradient(
-    circle at 100% 0,
-    transparent calc(var(--nt-connector-radius) - var(--nt-connector-width) / 2 - 0.5px),
-    currentColor calc(var(--nt-connector-radius) - var(--nt-connector-width) / 2 + 0.5px)
-      calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 - 0.5px),
-    transparent calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 + 0.5px)
-  );
-  --nt-arc-image-rtl: radial-gradient(
-    circle at 0 0,
-    transparent calc(var(--nt-connector-radius) - var(--nt-connector-width) / 2 - 0.5px),
-    currentColor calc(var(--nt-connector-radius) - var(--nt-connector-width) / 2 + 0.5px)
-      calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 - 0.5px),
-    transparent calc(var(--nt-connector-radius) + var(--nt-connector-width) / 2 + 0.5px)
-  );
+  --ztt-rail-image: linear-gradient(currentColor, currentColor);
+  --ztt-arc-size: calc(var(--ztt-arc-radius) + var(--ztt-line-width) / 2);
+  --ztt-arc-stops:
+    transparent calc(var(--ztt-arc-radius) - var(--ztt-line-width) / 2 - 0.5px),
+    currentColor calc(var(--ztt-arc-radius) - var(--ztt-line-width) / 2 + 0.5px)
+      calc(var(--ztt-arc-radius) + var(--ztt-line-width) / 2 - 0.5px),
+    transparent calc(var(--ztt-arc-radius) + var(--ztt-line-width) / 2 + 0.5px);
+  --ztt-arc-image: radial-gradient(circle at 100% 0, var(--ztt-arc-stops));
+  --ztt-arc-image-rtl: radial-gradient(circle at 0 0, var(--ztt-arc-stops));
 }
 
-/* ---------------------------------------------------------------------------
-   Indentation (only when the sidebar is expanded; icon-only mode stays flat)
-   --------------------------------------------------------------------------- */
-:root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([zen-essential], [zen-glance-tab]) {
-  margin-inline-start: calc(var(--nt-depth, 0) * var(--nt-indent)) !important;
-  transition: var(--zen-tabbox-element-indent-transition, margin-inline-start 0.1s ease-in-out);
+.ztt-lines {
+  display: none;
 }
 
-/* Inside Zen folders, stack our indent on top of the folder's own indent. */
-:root[zen-sidebar-expanded="true"] zen-folder > .tab-group-container > .tabbrowser-tab[nt-depth]:not([zen-essential]) {
-  margin-inline-start: calc(var(--zen-folder-indent, 14px) + var(--nt-depth, 0) * var(--nt-indent)) !important;
+:root[zen-sidebar-expanded="true"] .ztt-lines {
+  display: block;
+  position: absolute;
+  pointer-events: none;
+  inset-block: calc(-1 * var(--ztt-overhang-top, 0px)) calc(-1 * var(--ztt-overhang-bottom, 0px));
+  inset-inline: calc(var(--ztt-columns) * var(--ztt-indent) * -1) 0;
+  --ztt-mid: calc(50% + (var(--ztt-overhang-top, 0px) - var(--ztt-overhang-bottom, 0px)) / 2);
+  --ztt-rail-top-image: linear-gradient(currentColor calc(var(--ztt-mid) - var(--ztt-arc-radius)), transparent 0);
+  --ztt-arc-y: calc(var(--ztt-mid) - var(--ztt-arc-radius) / 2 + var(--ztt-line-width) / 4);
+
+  &::before,
+  &::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+  }
+
+  &::before {
+    background: var(--ztt-rails);
+    opacity: var(--ztt-line-opacity);
+  }
+
+  &::after {
+    background: var(--ztt-rails-hover);
+    opacity: var(--ztt-hover-line-opacity);
+  }
 }
 
-/* ---------------------------------------------------------------------------
-   Collapsed subtrees
-   --------------------------------------------------------------------------- */
-.tabbrowser-tab[nt-hidden]:not([zen-essential], [nt-folding]) {
+.tabbrowser-tab > .tab-stack:has(> .ztt-lines) {
+  position: relative;
+}
+
+:root[zen-sidebar-expanded="true"] .tabbrowser-tab > .tab-stack > .ztt-lines {
+  transform-origin: calc((100% + var(--ztt-columns) * var(--ztt-indent)) / 2) 50%;
+
+  :root:-moz-locale-dir(rtl) & {
+    transform-origin: calc((100% - var(--ztt-columns) * var(--ztt-indent)) / 2) 50%;
+  }
+
+  @media not (prefers-reduced-motion: reduce) {
+    transition: var(--ztt-press-transition);
+  }
+}
+
+:root:not([zen-renaming-tab="true"])
+  #tabbrowser-tabs:not([movingtab])
+  .tabbrowser-tab:active:not(:has(.tab-content > image:active, .ztt-hit:active))
+  > .tab-stack
+  > .ztt-lines {
+  scale: calc(1 / var(--zen-active-tab-scale));
+}
+
+.ztt-hit {
+  position: absolute;
+  pointer-events: auto;
+  cursor: pointer;
+  -moz-window-dragging: no-drag;
+
+  .tabbrowser-tab:is([ztt-hidden], [ztt-folding], [ztt-drag-source]) & {
+    pointer-events: none;
+  }
+
+  &:is([ztt-part="rail"], [ztt-part="top"]) {
+    inset-inline-start: calc(var(--ztt-x) - var(--ztt-hit-width) / 2);
+    inset-block-start: 0;
+    width: var(--ztt-hit-width);
+    height: 100%;
+  }
+
+  &[ztt-part="top"] {
+    height: var(--ztt-mid);
+  }
+
+  &[ztt-part="arm"] {
+    inset-inline-start: var(--ztt-x);
+    inset-block-start: calc(var(--ztt-mid) - var(--ztt-hit-width) / 2);
+    width: calc(var(--ztt-arc-radius) + var(--ztt-arm));
+    height: var(--ztt-hit-width);
+  }
+}
+
+.tabbrowser-tab:has(.ztt-hit:hover) {
+  &:not([selected]) > .tab-stack > .tab-background {
+    background-color: transparent !important;
+  }
+
+  & .tab-close-button {
+    visibility: collapse !important;
+  }
+}
+
+#tabbrowser-tabs .tabbrowser-tab:has(.ztt-hit:active) {
+  scale: none !important;
+}
+
+:root[zen-sidebar-expanded="true"] .tabbrowser-tab[ztt-depth] {
+  margin-inline-start: calc(
+    var(--zen-folder-indent, 0px) + var(--ztt-depth) * var(--ztt-indent) - var(--ztt-flatten, 0) * var(--ztt-folder-extra)
+  ) !important;
+}
+
+.tabbrowser-tab[ztt-hidden]:not([ztt-folding]) {
   display: none !important;
 }
 
-/* Collapsing or expanding (the script animates height and opacity). */
-.tabbrowser-tab[nt-folding] {
+.tabbrowser-tab[ztt-folding] {
   overflow-x: visible;
   overflow-y: clip;
   transition: none !important;
 }
 
-@media (prefers-reduced-motion: no-preference) {
-  .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) {
-    transition:
-      opacity 0.16s ease,
-      translate 0.16s ease,
-      var(--zen-tabbox-element-indent-transition, margin-inline-start 0.1s ease-in-out);
-
-    @starting-style {
-      opacity: 0;
-      translate: 0 -4px;
-    }
-  }
-}
-
-/* ---------------------------------------------------------------------------
-   Caret (twisty)
-   --------------------------------------------------------------------------- */
-.tabbrowser-tab .nt-twisty {
+.ztt-chevron {
   display: none;
 }
 
-:root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-has-children]:not([zen-essential]) .nt-twisty {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex: 0 0 auto;
-  width: var(--nt-twisty-size);
-  height: var(--nt-twisty-size);
-  /* "right": between the label/counter and the close button. */
-  margin-inline: 2px -2px;
-  border-radius: 4px;
-  opacity: 0.55;
-  -moz-window-dragging: no-drag;
-  cursor: default;
-  transition:
-    opacity 0.12s ease,
-    background-color 0.12s ease;
-
-  &::before {
-    content: "";
-    width: 10px;
-    height: 10px;
-    background-color: currentColor;
-    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='M3.2 5.6a1 1 0 0 1 1.4 0L8 9l3.4-3.4a1 1 0 1 1 1.4 1.4l-4.1 4.1a1 1 0 0 1-1.4 0L3.2 7a1 1 0 0 1 0-1.4z'/%3E%3C/svg%3E") center / contain no-repeat;
-    transition: rotate 0.15s ease;
-  }
-
-  &:hover {
-    opacity: 1;
-    background-color: var(--zen-toolbar-element-bg-hover, rgba(127, 127, 127, 0.15));
-  }
+:root:not([zen-sidebar-expanded="true"]) .tabbrowser-tab[ztt-collapsed] > .tab-stack > .tab-background {
+  outline: var(--ztt-line-width) dashed color-mix(in srgb, currentColor calc(var(--ztt-hover-line-opacity) * 100%), transparent) !important;
+  outline-offset: calc(-1 * var(--ztt-line-width)) !important;
 }
 
-/* Far right edge: after the close button, pulled into the end padding. */
-:root:not([nt-caret])[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-has-children]:not([zen-essential]) .nt-twisty,
-:root[nt-caret="edge"][zen-sidebar-expanded="true"] .tabbrowser-tab[nt-has-children]:not([zen-essential]) .nt-twisty {
-  margin-inline: 2px -4px;
-}
-
-/* Left side: before the favicon, pulled into the tab's start padding. */
-:root[nt-caret="left"][zen-sidebar-expanded="true"] .tabbrowser-tab[nt-has-children]:not([zen-essential]) .nt-twisty {
-  margin-inline: -6px 2px;
-}
-
-.tabbrowser-tab[nt-collapsed] .nt-twisty::before {
-  rotate: -90deg;
-}
-
-:root:-moz-locale-dir(rtl) .tabbrowser-tab[nt-collapsed] .nt-twisty::before {
-  rotate: 90deg;
-}
-
-/* In place of the favicon: the chevron of a space's pinned tabs
-   (zen-workspaces.css), shown on hover and while collapsed. */
-:root[nt-caret="icon"][zen-sidebar-expanded="true"] .tabbrowser-tab[nt-has-children]:not([zen-essential]) {
-  & .nt-twisty {
-    display: none;
+.tabbrowser-tab[ztt-has-children] {
+  & .ztt-chevron {
     box-sizing: border-box;
     width: 16px;
     height: 16px;
     padding: 1px;
-    /* The favicon's own margins in the icon stack (vertical-tabs.css). */
     margin-block: 0;
-    margin-inline: calc(var(--toolbarbutton-padding-inner, 0px) / 3) var(--toolbarbutton-padding-inner, 0px);
-    border-radius: 0;
-    transition: none;
-
-    &,
-    &:hover {
-      opacity: 1;
-      background-color: transparent;
-    }
+    margin-inline: calc(var(--toolbarbutton-padding-inner) / 3) var(--toolbarbutton-padding-inner);
+    align-items: center;
+    justify-content: center;
+    -moz-window-dragging: no-drag;
 
     &::before {
+      content: "";
       width: 100%;
       height: 100%;
+      background-color: currentColor;
       mask: url("chrome://browser/skin/zen-icons/arrow-right.svg") center / contain no-repeat;
       rotate: 90deg;
-      transition: rotate 0.1s;
+      transition: rotate var(--ztt-chevron-duration);
     }
   }
 
-  &:is(:hover:not(:has(.nt-hit:hover)), [nt-collapsed]) {
-    & .nt-twisty {
-      display: flex;
-    }
+  :root[zen-sidebar-expanded="true"] &:is([ztt-collapsed], :hover:not(:has(.ztt-hit:hover))) {
+    & > .tab-stack > .tab-content > .tab-icon-stack {
+      & > .ztt-chevron {
+        display: flex;
+      }
 
-    & .tab-icon-stack > :not(.nt-twisty) {
-      visibility: hidden;
+      & > :is(.tab-throbber, .tab-icon-pending, .zen-media-notes, .tab-icon-image, .tab-sharing-icon-overlay) {
+        visibility: hidden;
+      }
     }
   }
 
-  &[nt-collapsed] .nt-twisty::before {
+  &[ztt-collapsed] .ztt-chevron::before {
     rotate: 0deg;
   }
 
-  :root:-moz-locale-dir(rtl) &[nt-collapsed] .nt-twisty::before {
+  &[sharing] .ztt-chevron::before {
+    background-color: var(--ztt-sharing-color);
+  }
+
+  :root:-moz-locale-dir(rtl) &[ztt-collapsed] .ztt-chevron::before {
     rotate: 180deg;
   }
 }
 
-/* ---------------------------------------------------------------------------
-   Hidden-descendant counter on collapsed parents
-   --------------------------------------------------------------------------- */
-.tabbrowser-tab .nt-count {
-  display: none;
-}
+:root[zen-sidebar-expanded="true"] zen-folder > .tab-group-container {
+  margin-inline-start: var(--ztt-folder-extra) !important;
 
-@media (-moz-pref("mod.nestedtabs.show_count")) {
-  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-collapsed][nt-has-children]:not([zen-essential]) .nt-count {
-    display: flex;
-    align-items: center;
-    flex: 0 0 auto;
-    min-width: 16px;
-    height: 16px;
-    padding: 0 5px;
-    margin-inline: 4px 2px;
-    border-radius: 99px;
-    font-size: 10px;
-    font-weight: 600;
-    justify-content: center;
-    background-color: var(--zen-toolbar-element-bg, rgba(127, 127, 127, 0.15));
-    opacity: 0.8;
-  }
-
-  /* Leave room for the close button when it appears on hover. */
-  .tabbrowser-tab[nt-collapsed]:hover .nt-count {
-    display: none !important;
+  & > tab-group[split-view-group] {
+    margin-inline-start: calc(var(--zen-folder-indent, 0px) - var(--ztt-flatten, 0) * var(--ztt-folder-extra)) !important;
   }
 }
 
-/* ---------------------------------------------------------------------------
-   Tree lines layer, shared by guides and connectors. It spans the row's
-   indent and the tab. While Zen shrinks a pressed tab (scale:
-   var(--zen-active-tab-scale)), it scales by the inverse around the tab's
-   center.
-   --------------------------------------------------------------------------- */
-@media (-moz-pref("mod.nestedtabs.tree_lines", "guides")), (-moz-pref("mod.nestedtabs.tree_lines", "connectors")) {
-  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack {
-    position: relative;
-
-    &::before,
-    &::after {
-      content: "";
-      position: absolute;
-      pointer-events: none;
-      /* The script measures the gap between rows and sets the overhang to half
-         of it, so neighbouring segments meet exactly instead of overlapping. */
-      inset-block: calc(-1 * var(--nt-guide-overhang, 0px));
-      inset-inline: calc(var(--nt-depth) * var(--nt-indent) * -1) 0;
-      transform-origin: calc((100% + var(--nt-depth) * var(--nt-indent)) / 2) 50%;
-
-      @media not (prefers-reduced-motion: reduce) {
-        transition: scale 0.1s ease;
-      }
-
-      :root:-moz-locale-dir(rtl) & {
-        transform-origin: calc((100% - var(--nt-depth) * var(--nt-indent)) / 2) 50%;
-      }
-    }
-  }
-
-  :root:not([zen-renaming-tab="true"])
-    #tabbrowser-tabs:not([movingtab])
-    .tabbrowser-tab:active:not(:has(.tab-content > image:active, .nt-hit:active))
-    > .tab-stack {
-    &::before,
-    &::after {
-      scale: calc(1 / var(--zen-active-tab-scale, 1));
-    }
-  }
-}
-
-/* Pressing a tree line does not press its tab. */
-#tabbrowser-tabs .tabbrowser-tab:has(.nt-hit:active) {
-  scale: none !important;
-}
-
-/* ---------------------------------------------------------------------------
-   Indent guide lines (TST "Indent Line" look, but quieter)
-   --------------------------------------------------------------------------- */
-@media (-moz-pref("mod.nestedtabs.tree_lines", "guides")) {
-  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack::before {
-    background: repeating-linear-gradient(
-        to right,
-        transparent 0 calc(var(--nt-trunk-x) - 0.5px),
-        var(--nt-guide-color) calc(var(--nt-trunk-x) - 0.5px) calc(var(--nt-trunk-x) + 0.5px),
-        transparent calc(var(--nt-trunk-x) + 0.5px) var(--nt-indent)
-      )
-      0 0 / calc(var(--nt-depth) * var(--nt-indent)) 100% no-repeat;
-
-    :root:-moz-locale-dir(rtl) & {
-      background: repeating-linear-gradient(
-          to left,
-          transparent 0 calc(var(--nt-trunk-x) - 0.5px),
-          var(--nt-guide-color) calc(var(--nt-trunk-x) - 0.5px) calc(var(--nt-trunk-x) + 0.5px),
-          transparent calc(var(--nt-trunk-x) + 0.5px) var(--nt-indent)
-        )
-        100% 0 / calc(var(--nt-depth) * var(--nt-indent)) 100% no-repeat;
-    }
-  }
-}
-
-/* ---------------------------------------------------------------------------
-   Tree connectors: ├ and ╰ branches from under the parent's icon to the
-   row's vertical center, with │ only where a tree continues. All of a row's
-   lines are background layers of one element (--nt-rails, set by the script);
-   the lines of a hovered parent's connector are on ::after (--nt-rails-hover).
-   --------------------------------------------------------------------------- */
-@media (-moz-pref("mod.nestedtabs.tree_lines", "connectors")) {
-  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack {
-    &::before {
-      background: var(--nt-rails, none);
-      opacity: var(--nt-connector-opacity);
-    }
-
-    &::after {
-      background: var(--nt-rails-hover, none);
-      opacity: var(--nt-connector-hover-opacity);
-    }
-  }
-}
-
-/* ---------------------------------------------------------------------------
-   Interactive connectors: click targets over the lines (.nt-hit, placed by
-   the script) collapse or expand the parent the line belongs to.
-   --------------------------------------------------------------------------- */
-.nt-hits {
-  display: none;
-}
-
-@media (-moz-pref("mod.nestedtabs.interactive_lines")) and (-moz-pref("mod.nestedtabs.tree_lines", "connectors")) {
-  :root[zen-sidebar-expanded="true"] .tabbrowser-tab[nt-depth]:not([nt-depth="0"], [zen-essential]) > .tab-stack > .nt-hits {
-    display: block;
-    position: absolute;
-    pointer-events: none;
-    inset-block: calc(-1 * var(--nt-guide-overhang, 0px));
-    inset-inline-start: calc(var(--nt-depth) * var(--nt-indent) * -1);
-    width: calc(var(--nt-depth) * var(--nt-indent) + var(--nt-branch-overlap));
-  }
-
-  .nt-hit {
-    position: absolute;
-    pointer-events: auto;
-    cursor: pointer;
-    -moz-window-dragging: no-drag;
-
-    .tabbrowser-tab:is([nt-hidden], [nt-folding]) & {
-      pointer-events: none;
-    }
-
-    &:is([nt-part="rail"], [nt-part="top"]) {
-      inset-inline-start: calc(var(--nt-col) * var(--nt-indent) + var(--nt-trunk-x) - var(--nt-hit-width) / 2);
-      inset-block-start: 0;
-      width: var(--nt-hit-width);
-      height: 100%;
-    }
-
-    &[nt-part="top"] {
-      height: 50%;
-    }
-
-    &[nt-part="arm"] {
-      inset-inline-start: calc(var(--nt-col) * var(--nt-indent) + var(--nt-trunk-x));
-      inset-block-start: calc(50% - var(--nt-hit-width) / 2);
-      width: calc(var(--nt-connector-radius) + var(--nt-branch-length));
-      height: var(--nt-hit-width);
-    }
-  }
-
-  /* Hovering a line does not show its tab as hovered. */
-  .tabbrowser-tab:has(.nt-hit:hover) {
-    &:not([selected]) > .tab-stack > .tab-background {
-      background-color: transparent !important;
-    }
-
-    & .tab-close-button {
-      visibility: collapse !important;
-    }
-  }
-}
-
-/* ---------------------------------------------------------------------------
-   Drag and drop: where the tab will land
-   - a line in the gap it will drop into, starting (at the dot) at the indent
-     it will get
-   - a label at the end of the line: "↳ Inside …" or "Top level"
-   - the future parent highlighted
-   - the dragged tab (and its subtree) dimmed in place while it is moving
-   --------------------------------------------------------------------------- */
-#nt-drop-line {
+#ztt-drop-line {
   position: fixed;
   z-index: 2147483647;
-  height: 2px;
-  border-radius: 2px;
+  height: var(--ztt-line-width);
+  border-radius: var(--ztt-line-width);
   pointer-events: none;
   background: var(--zen-primary-color, AccentColor);
 
-  /* Dot marking where the indent starts. */
   &::before {
     content: "";
     position: absolute;
     inset-inline-start: -4px;
-    top: -3px;
+    top: 50%;
+    translate: 0 -50%;
     width: 8px;
     height: 8px;
     border-radius: 50%;
@@ -413,24 +219,17 @@
     border: 2px solid var(--zen-primary-color, AccentColor);
     background: var(--zen-colors-tertiary, Canvas);
   }
-
-  &[hidden] {
-    display: none;
-  }
 }
 
-#nt-drop-label {
+#ztt-drop-label {
   position: fixed;
   z-index: 2147483647;
   translate: -100% -50%;
   margin-inline-start: -6px;
-  max-width: 220px;
   padding: 2px 8px;
   border-radius: 6px;
   pointer-events: none;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   font: menu;
   font-size: 11px;
   font-weight: 600;
@@ -438,28 +237,45 @@
   background: var(--zen-primary-color, AccentColor);
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
 
-  &[nt-root] {
+  :root:-moz-locale-dir(rtl) & {
+    translate: 0 -50%;
+  }
+
+  &[ztt-root] {
     color: light-dark(white, black);
     background: light-dark(rgba(0, 0, 0, 0.75), rgba(255, 255, 255, 0.85));
   }
 
-  &[hidden] {
-    display: none;
+  & > .ztt-drop-title {
+    display: inline-block;
+    max-width: 160px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    vertical-align: bottom;
   }
 }
 
-.tabbrowser-tab[nt-drop-parent] > .tab-stack > .tab-background {
+:is(#ztt-drop-line, #ztt-drop-label)[hidden] {
+  display: none;
+}
+
+.tabbrowser-tab[ztt-drop-parent] > .tab-stack > .tab-background {
   background-color: color-mix(in srgb, var(--zen-primary-color, AccentColor) 22%, transparent) !important;
   outline: 1.5px solid color-mix(in srgb, var(--zen-primary-color, AccentColor) 80%, transparent) !important;
   outline-offset: -1.5px;
 }
 
-.tabbrowser-tab[nt-drag-source] {
+.tabbrowser-tab[ztt-drag-source] {
   opacity: 0.4;
+
+  :root[ztt-dragging] & {
+    transform: translateY(var(--ztt-drag-dy)) !important;
+    transition: none !important;
+    pointer-events: none;
+    z-index: 1;
+  }
 }
 
-/* Context menu items are only shown when they apply (JS toggles [hidden]). */
-#tabContextMenu .nt-menu-separator[hidden],
-#tabContextMenu [id^="nt-ctx-"][hidden] {
-  display: none;
+zen-folder > .tab-group-label-container:has(.ztt-hit:hover)::before {
+  background-color: transparent !important;
 }
